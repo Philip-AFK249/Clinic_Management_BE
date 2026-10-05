@@ -196,6 +196,8 @@ public class AuthService {
                 .gender(user.getGender())
                 .address(user.getAddress())
                 .isOcrVerified(user.getIsOcrVerified())
+                .validFrom(user.getValidFrom())
+                .validUntil(user.getValidUntil())
                 .createdAt(user.getCreatedAt())
                 .build();
     }
