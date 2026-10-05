@@ -31,6 +31,10 @@ public class IntakeService {
 
     @Transactional
     public IntakeResponse processIntake(AdministrativeIntakeRequest request) {
+        if (request.getInsuranceCode() != null) {
+            request.setInsuranceCode(cleanInsuranceCode(request.getInsuranceCode()));
+        }
+
         Patient patient = resolvePatient(request);
 
         QueueTicket savedTicket = null;
@@ -138,10 +142,18 @@ public class IntakeService {
 
     private Patient updatePatientDetails(Patient patient, AdministrativeIntakeRequest req) {
         patient.setFullName(req.getFullName().trim());
-        if (req.getPhone() != null && !req.getPhone().isBlank()) patient.setPhone(req.getPhone());
-        if (req.getAddress() != null && !req.getAddress().isBlank()) patient.setAddress(req.getAddress());
+        if (req.getInsuranceCode() != null && !req.getInsuranceCode().isBlank()) {
+            patient.setInsuranceCode(cleanInsuranceCode(req.getInsuranceCode()));
+        }
+        if (req.getPhone() != null && !req.getPhone().isBlank()) patient.setPhone(req.getPhone().trim());
+        if (req.getAddress() != null && !req.getAddress().isBlank()) patient.setAddress(req.getAddress().trim());
         if (req.getInitialHospitalCode() != null && !req.getInitialHospitalCode().isBlank()) {
-            patient.setInitialHospitalCode(req.getInitialHospitalCode());
+            patient.setInitialHospitalCode(req.getInitialHospitalCode().trim());
+        }
+        if (req.getDateOfBirth() != null) patient.setDateOfBirth(req.getDateOfBirth());
+        if (req.getGender() != null && !req.getGender().isBlank()) patient.setGender(req.getGender().trim());
+        if (req.getIdentityCardNumber() != null && !req.getIdentityCardNumber().isBlank()) {
+            patient.setIdentityCardNumber(req.getIdentityCardNumber().trim());
         }
         if (Boolean.TRUE.equals(req.getIsOcrVerified())) patient.setIsOcrVerified(true);
         return patientRepository.save(patient);
@@ -156,5 +168,10 @@ public class IntakeService {
             default -> "K";
         };
         return String.format("#%s-%03d", prefix, currentCount);
+    }
+    private String cleanInsuranceCode(String code) {
+        if (code == null) return null;
+        String cleaned = code.replaceAll("\\s+", "").toUpperCase().trim();
+        return cleaned.isEmpty() ? null : cleaned;
     }
 }

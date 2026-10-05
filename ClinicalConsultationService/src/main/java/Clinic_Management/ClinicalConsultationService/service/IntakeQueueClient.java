@@ -31,4 +31,5 @@ public class IntakeQueueClient {
             System.err.println("Không thể đồng bộ trạng thái ticket sang PatientIntakeService: " + ex.getMessage());
         }
     }
+
 }

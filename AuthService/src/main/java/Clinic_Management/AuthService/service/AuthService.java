@@ -160,12 +160,20 @@ public class AuthService {
         user.setFullName(req.getFullName().trim());
         if (req.getPhone() != null) user.setPhone(req.getPhone().trim());
         if (req.getIdentityCardNumber() != null) user.setIdentityCardNumber(req.getIdentityCardNumber().trim());
-        if (req.getInsuranceCode() != null) user.setInsuranceCode(req.getInsuranceCode().trim().toUpperCase());
-        if (req.getInitialHospitalCode() != null) user.setInitialHospitalCode(req.getInitialHospitalCode().trim());
+        if (req.getInsuranceCode() != null) {
+            user.setInsuranceCode(cleanInsuranceCode(req.getInsuranceCode()));
+        }        if (req.getInitialHospitalCode() != null) user.setInitialHospitalCode(req.getInitialHospitalCode().trim());
         if (req.getDateOfBirth() != null) user.setDateOfBirth(req.getDateOfBirth());
         if (req.getGender() != null) user.setGender(req.getGender());
         if (req.getAddress() != null) user.setAddress(req.getAddress().trim());
         if (req.getIsOcrVerified() != null) user.setIsOcrVerified(req.getIsOcrVerified());
+        if (req.getValidFrom() != null) user.setValidFrom(req.getValidFrom());
+        if (req.getValidUntil() != null) user.setValidUntil(req.getValidUntil());
+    }
+    private String cleanInsuranceCode(String code) {
+        if (code == null) return null;
+        String cleaned = code.replaceAll("\\s+", "").toUpperCase().trim();
+        return cleaned.isEmpty() ? null : cleaned;
     }
 
     private AuthResponse mapToAuthResponse(User user, String token) {

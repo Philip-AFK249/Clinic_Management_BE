@@ -35,4 +35,6 @@ public class AuthResponse {
     private Boolean isOcrVerified;
 
     private LocalDateTime createdAt;
+    private LocalDate validFrom;
+    private LocalDate validUntil;
 }

@@ -18,4 +18,7 @@ public class UpdatePatientRequest {
     private String gender;
     private String address;
     private Boolean isOcrVerified;
+    private LocalDate validFrom;
+    private LocalDate validUntil;
+
 }
