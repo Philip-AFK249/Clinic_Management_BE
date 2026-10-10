@@ -1,10 +1,7 @@
 package Clinic_Management.DoctorScheduleService.service;
 
 
-import Clinic_Management.DoctorScheduleService.dto.AssignDoctorResponse;
-import Clinic_Management.DoctorScheduleService.dto.CreateShiftRequest;
-import Clinic_Management.DoctorScheduleService.dto.DoctorShiftResponse;
-import Clinic_Management.DoctorScheduleService.dto.TimeSlotResponse;
+import Clinic_Management.DoctorScheduleService.dto.*;
 import Clinic_Management.DoctorScheduleService.entity.*;
 import Clinic_Management.DoctorScheduleService.repository.DepartmentRepository;
 import Clinic_Management.DoctorScheduleService.repository.DoctorRepository;
@@ -217,6 +214,71 @@ public class DoctorScheduleService {
                 .dutyType(shift.getDutyType())
                 .maxPatientsPerSlot(shift.getMaxPatientsPerSlot())
                 .roomNumber(shift.getDoctor().getRoomNumber())
+                .build();
+    }
+
+    @Transactional
+    public AssignDoctorResponse assignDoctorToSlot(AssignDoctorRequest request) {
+        Long departmentId = request.getDepartmentId();
+        LocalDate date = request.getAppointmentDate();
+        LocalTime slotStartTime = request.getSlotStartTime();
+        String ticketNumber = request.getTicketNumber();
+
+        // Xác định ca sáng hay ca chiều
+        ShiftSession session = slotStartTime.isBefore(LocalTime.of(12, 0)) ? ShiftSession.MORNING : ShiftSession.AFTERNOON;
+
+        List<DoctorShift> activeShifts = shiftRepository
+                .findByDepartmentIdAndShiftDateAndDutyType(departmentId, date, DutyType.OUTPATIENT)
+                .stream()
+                .filter(s -> s.getSession() == session)
+                .toList();
+
+        if (activeShifts.isEmpty()) {
+            throw new IllegalStateException("Không có bác sĩ trực phòng khám trong khung giờ này.");
+        }
+
+        // Cân bằng tải Least-Busy
+        Doctor selectedDoctor = null;
+        long minPatientCount = Long.MAX_VALUE;
+
+        for (DoctorShift shift : activeShifts) {
+            Doctor doctor = shift.getDoctor();
+            long currentAssigned = slotAssignmentRepository
+                    .countByDoctorIdAndAppointmentDateAndSlotStartTime(doctor.getId(), date, slotStartTime);
+
+            if (currentAssigned < shift.getMaxPatientsPerSlot() && currentAssigned < minPatientCount) {
+                minPatientCount = currentAssigned;
+                selectedDoctor = doctor;
+            }
+        }
+
+        if (selectedDoctor == null) {
+            throw new IllegalStateException("Khung giờ này đã kín lịch cho tất cả bác sĩ.");
+        }
+
+        // Lưu đầy đủ thông tin bệnh nhân vào slot_assignments
+        SlotAssignment assignment = SlotAssignment.builder()
+                .ticketNumber(ticketNumber)
+                .doctor(selectedDoctor)
+                .departmentId(departmentId)
+                .appointmentDate(date)
+                .slotStartTime(slotStartTime)
+                .patientName(request.getPatientName())
+                .patientPhone(request.getPatientPhone())
+                .insuranceCode(request.getInsuranceCode())
+                .chiefComplaint(request.getChiefComplaint())
+                .status("BOOKED")
+                .build();
+        slotAssignmentRepository.save(assignment);
+
+        return AssignDoctorResponse.builder()
+                .ticketNumber(ticketNumber)
+                .doctorId(selectedDoctor.getId())
+                .doctorName(selectedDoctor.getFullName())
+                .roomNumber(selectedDoctor.getRoomNumber())
+                .date(date)
+                .slotStartTime(slotStartTime)
+                .message("Phân bổ bác sĩ thành công theo cơ chế cân bằng tải.")
                 .build();
     }
 }

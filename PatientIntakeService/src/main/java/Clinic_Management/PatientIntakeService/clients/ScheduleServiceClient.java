@@ -37,11 +37,17 @@ public class ScheduleServiceClient {
     }
 
     public ScheduleAssignDoctorResponse assignDoctor(ScheduleAssignDoctorRequest request) {
-        return restClient.post()
-                .uri("/assign-doctor")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(request)
-                .retrieve()
-                .body(ScheduleAssignDoctorResponse.class);
+        try {
+            return restClient.post()
+                    .uri("/assign-doctor")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request)
+                    .retrieve()
+                    .body(ScheduleAssignDoctorResponse.class);
+        } catch (org.springframework.web.client.HttpClientErrorException | org.springframework.web.client.HttpServerErrorException ex) {
+            throw new IllegalStateException("Lỗi điều phối lịch trực: " + ex.getResponseBodyAsString());
+        } catch (Exception ex) {
+            throw new IllegalStateException("Không thể kết nối đến DoctorScheduleService (:8081): " + ex.getMessage());
+        }
     }
 }

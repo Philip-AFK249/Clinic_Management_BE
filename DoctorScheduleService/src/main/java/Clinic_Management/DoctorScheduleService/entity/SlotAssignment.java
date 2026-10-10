@@ -34,4 +34,22 @@ public class SlotAssignment {
 
     @Column(nullable = false)
     private LocalTime slotStartTime; // Start time of the slot
+
+    @Column(name = "patient_name")
+    private String patientName;
+
+    @Column(name = "patient_phone")
+    private String patientPhone;
+
+    @Column(name = "insurance_code")
+    private String insuranceCode;
+
+    @Column(name = "chief_complaint")
+    private String chiefComplaint;
+
+    @Column(name = "status")
+    @Builder.Default
+    private String status = "BOOKED";
+
+
 }

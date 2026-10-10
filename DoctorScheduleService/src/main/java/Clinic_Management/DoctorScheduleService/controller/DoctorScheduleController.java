@@ -77,14 +77,10 @@ public class DoctorScheduleController {
         return ResponseEntity.ok(scheduleService.getAvailableSlots(departmentId, date));
     }
 
+
     @PostMapping("/assign-doctor")
     @Operation(summary = "Phân bổ bác sĩ cho bệnh nhân vào slot (Cân bằng tải Least-Busy)")
     public ResponseEntity<AssignDoctorResponse> assignDoctor(@Valid @RequestBody AssignDoctorRequest request) {
-        return ResponseEntity.ok(scheduleService.assignDoctorToSlot(
-                request.getDepartmentId(),
-                request.getAppointmentDate(),
-                request.getSlotStartTime(),
-                request.getTicketNumber()
-        ));
+        return ResponseEntity.ok(scheduleService.assignDoctorToSlot(request));
     }
 }
