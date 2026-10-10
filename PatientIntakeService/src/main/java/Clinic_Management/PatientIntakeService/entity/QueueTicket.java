@@ -88,4 +88,5 @@ public class QueueTicket {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
 }

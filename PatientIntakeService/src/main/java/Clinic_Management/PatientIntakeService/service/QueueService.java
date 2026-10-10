@@ -105,4 +105,16 @@ public class QueueService {
                 .isOcrVerified(patient.getIsOcrVerified())
                 .build();
     }
+
+    @Transactional(readOnly = true)
+    public List<QueueTicket> getReceptionQueue(Long departmentId, LocalDate date) {
+        if (departmentId != null && departmentId > 0) {
+            return queueTicketRepository.findByDepartmentIdAndAppointmentDateAndStatusIn(
+                    departmentId, date, List.of(QueueStatus.WAITING, QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
+            );
+        }
+        return queueTicketRepository.findByAppointmentDateAndStatusIn(
+                date, List.of(QueueStatus.WAITING, QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
+        );
+    }
 }

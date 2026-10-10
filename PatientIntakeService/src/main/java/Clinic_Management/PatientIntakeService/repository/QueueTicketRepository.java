@@ -56,4 +56,6 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
     Optional<QueueTicket> findByTicketNumberWithPatient(@Param("ticketNumber") String ticketNumber);
 
     Optional<QueueTicket> findByTicketNumber(String ticketNumber);
+    List<QueueTicket> findByDepartmentIdAndAppointmentDateAndStatusIn(Long departmentId, LocalDate appointmentDate, List<QueueStatus> statuses);
+    List<QueueTicket> findByAppointmentDateAndStatusIn(LocalDate appointmentDate, List<QueueStatus> statuses);
 }

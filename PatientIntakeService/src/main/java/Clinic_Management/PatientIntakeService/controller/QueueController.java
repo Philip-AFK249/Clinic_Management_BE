@@ -52,4 +52,13 @@ public class QueueController {
             @RequestParam QueueStatus status) {
         return ResponseEntity.ok(queueService.updateTicketStatus(ticketNumber, status));
     }
+
+    @GetMapping("/reception")
+    @Operation(summary = "Lấy danh sách hàng đợi trực tiếp cho Quầy tiếp đón")
+    public ResponseEntity<List<QueueTicket>> getReceptionQueue(
+            @RequestParam(required = false) Long departmentId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        LocalDate targetDate = (date != null) ? date : LocalDate.now();
+        return ResponseEntity.ok(queueService.getReceptionQueue(departmentId, targetDate));
+    }
 }
