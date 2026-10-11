@@ -44,7 +44,7 @@ public class SlotAssignment {
     @Column(name = "insurance_code")
     private String insuranceCode;
 
-    @Column(name = "chief_complaint")
+    @Column(name = "chief_complaint", columnDefinition = "TEXT")
     private String chiefComplaint;
 
     @Column(name = "status")

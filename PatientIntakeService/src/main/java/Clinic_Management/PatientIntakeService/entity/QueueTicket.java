@@ -75,7 +75,7 @@ public class QueueTicket {
     @Builder.Default
     private QueueStatus status = QueueStatus.WAITING;
 
-    @Column(name = "chief_complaint", length = 500)
+    @Column(name = "chief_complaint", columnDefinition = "TEXT")
     private String chiefComplaint;
 
     @CreationTimestamp

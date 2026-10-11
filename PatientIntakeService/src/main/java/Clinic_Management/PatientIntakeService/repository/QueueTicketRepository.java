@@ -58,4 +58,16 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
     Optional<QueueTicket> findByTicketNumber(String ticketNumber);
     List<QueueTicket> findByDepartmentIdAndAppointmentDateAndStatusIn(Long departmentId, LocalDate appointmentDate, List<QueueStatus> statuses);
     List<QueueTicket> findByAppointmentDateAndStatusIn(LocalDate appointmentDate, List<QueueStatus> statuses);
+
+    @Query("""
+        SELECT q FROM QueueTicket q
+        JOIN FETCH q.patient
+        WHERE q.patient.id = :patientId
+          AND q.status IN :statuses
+        ORDER BY q.appointmentDate DESC, q.slotStartTime DESC
+    """)
+    List<QueueTicket> findActiveTicketsByPatientId(
+            @Param("patientId") Long patientId,
+            @Param("statuses") List<QueueStatus> statuses
+    );
 }

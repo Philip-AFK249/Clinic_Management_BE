@@ -61,4 +61,10 @@ public class QueueController {
         LocalDate targetDate = (date != null) ? date : LocalDate.now();
         return ResponseEntity.ok(queueService.getReceptionQueue(departmentId, targetDate));
     }
+
+    @GetMapping("/patient/{patientId}/active")
+    @Operation(summary = "Lấy phiếu khám đang hoạt động gần nhất của bệnh nhân")
+    public ResponseEntity<QueueTicketDetailResponse> getActivePatientTicket(@PathVariable Long patientId) {
+        return ResponseEntity.ok(queueService.getActiveTicketByPatientId(patientId));
+    }
 }
