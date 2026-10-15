@@ -159,4 +159,48 @@ public class QueueService {
                 .isOcrVerified(patient.getIsOcrVerified())
                 .build();
     }
+    @Transactional(readOnly = true)
+    public QueueTicketDetailResponse getActiveTicketByIdentifier(String identifier) {
+        if (identifier == null || identifier.isBlank()) {
+            throw new IllegalArgumentException("Thông tin định danh bệnh nhân không được để trống.");
+        }
+        List<QueueTicket> tickets = queueTicketRepository.findActiveTicketsByIdentifier(
+                identifier.trim(),
+                List.of(QueueStatus.WAITING, QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
+        );
+
+        if (tickets.isEmpty()) {
+            throw new IllegalArgumentException("Bệnh nhân hiện không có phiếu khám nào đang hoạt động.");
+        }
+
+        QueueTicket ticket = tickets.get(0);
+        Patient patient = ticket.getPatient();
+
+        return QueueTicketDetailResponse.builder()
+                .ticketNumber(ticket.getTicketNumber())
+                .departmentId(ticket.getDepartmentId())
+                .departmentName(ticket.getDepartmentName())
+                .doctorId(ticket.getDoctorId())
+                .doctorName(ticket.getDoctorName())
+                .roomNumber(ticket.getRoomNumber())
+                .appointmentDate(ticket.getAppointmentDate())
+                .slotStartTime(ticket.getSlotStartTime())
+                .priorityLevel(ticket.getPriorityLevel())
+                .intakeSource(ticket.getIntakeSource())
+                .status(ticket.getStatus())
+                .chiefComplaint(ticket.getChiefComplaint())
+                .checkInTime(ticket.getCheckInTime())
+                .calledAt(ticket.getCalledAt())
+                .patientId(patient.getId())
+                .patientFullName(patient.getFullName())
+                .identityCardNumber(patient.getIdentityCardNumber())
+                .insuranceCode(patient.getInsuranceCode())
+                .initialHospitalCode(patient.getInitialHospitalCode())
+                .dateOfBirth(patient.getDateOfBirth())
+                .gender(patient.getGender())
+                .phone(patient.getPhone())
+                .address(patient.getAddress())
+                .isOcrVerified(patient.getIsOcrVerified())
+                .build();
+    }
 }

@@ -67,4 +67,10 @@ public class QueueController {
     public ResponseEntity<QueueTicketDetailResponse> getActivePatientTicket(@PathVariable Long patientId) {
         return ResponseEntity.ok(queueService.getActiveTicketByPatientId(patientId));
     }
+
+    @GetMapping("/patient/active")
+    public ResponseEntity<QueueTicketDetailResponse> getActivePatientTicket(
+            @RequestParam(required = false) String identifier) {
+        return ResponseEntity.ok(queueService.getActiveTicketByIdentifier(identifier));
+    }
 }

@@ -83,4 +83,11 @@ public class AuthController {
         authService.resetStaffPassword(id);
         return ResponseEntity.ok(Map.of("message", "Đã đặt lại mật khẩu về 'password123' thành công"));
     }
+
+    @DeleteMapping("/admin/patients/{id}")
+    @Operation(summary = "Admin xóa tài khoản và thông tin Bệnh nhân")
+    public ResponseEntity<Map<String, String>> deletePatientByAdmin(@PathVariable Long id) {
+        authService.deletePatientByAdmin(id);
+        return ResponseEntity.ok(Map.of("message", "Đã xóa hồ sơ bệnh nhân thành công"));
+    }
 }

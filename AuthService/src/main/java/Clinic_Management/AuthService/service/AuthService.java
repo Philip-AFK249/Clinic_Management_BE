@@ -54,6 +54,8 @@ public class AuthService {
                 .email(email)
                 .password(passwordEncoder.encode(request.getPassword()))
                 .phone(request.getPhone())
+                .dateOfBirth(request.getDateOfBirth())
+                .gender(request.getGender())
                 .role(UserRole.PATIENT)
                 .active(true)
                 .build();
@@ -234,5 +236,18 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode("password123"));
         userRepository.save(user);
         log.info("Admin đã reset mật khẩu tài khoản {} về 'password123'", user.getEmail());
+    }
+
+    @Transactional
+    public void deletePatientByAdmin(Long patientId) {
+        User patient = userRepository.findById(patientId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bệnh nhân có ID: " + patientId));
+
+        if (patient.getRole() != UserRole.PATIENT) {
+            throw new IllegalArgumentException("Chỉ được phép xóa tài khoản Bệnh nhân.");
+        }
+
+        userRepository.delete(patient);
+        log.info("Admin đã xóa tài khoản Bệnh nhân #{}: {}", patientId, patient.getFullName());
     }
 }
