@@ -1,5 +1,6 @@
 package Clinic_Management.AuthService.dto;
 import Clinic_Management.AuthService.entity.UserRole;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -29,6 +30,7 @@ public class AuthResponse {
     private String identityCardNumber;
     private String insuranceCode;
     private String initialHospitalCode;
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     private LocalDate dateOfBirth;
     private String gender;
     private String address;

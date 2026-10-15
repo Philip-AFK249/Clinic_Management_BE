@@ -1,5 +1,6 @@
 package Clinic_Management.AuthService.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -23,6 +24,8 @@ public class RegisterPatientRequest {
     @Size(min = 6, message = "Mật khẩu phải từ 6 ký tự trở lên")
     private String password;
 
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     private LocalDate dateOfBirth;
+
     private String gender;
 }

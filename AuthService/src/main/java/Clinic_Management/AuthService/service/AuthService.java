@@ -67,6 +67,7 @@ public class AuthService {
         return mapToAuthResponse(saved, token);
     }
 
+
     @Transactional
     public AuthResponse createStaffAccount(CreateStaffRequest request) {
         String email = request.getEmail().trim().toLowerCase();
