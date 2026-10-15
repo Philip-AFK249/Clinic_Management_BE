@@ -73,4 +73,10 @@ public class QueueController {
             @RequestParam(required = false) String identifier) {
         return ResponseEntity.ok(queueService.getActiveTicketByIdentifier(identifier));
     }
+
+    @GetMapping("/doctor/{doctorId}/upcoming")
+    @Operation(summary = "Lấy toàn bộ phiếu khám đang chờ từ hôm nay trở đi (tránh sót phiếu đặt trước ngày mai)")
+    public ResponseEntity<List<QueueTicket>> getDoctorUpcomingQueue(@PathVariable Long doctorId) {
+        return ResponseEntity.ok(queueService.getDoctorUpcomingQueue(doctorId, LocalDate.now()));
+    }
 }

@@ -203,4 +203,10 @@ public class QueueService {
                 .isOcrVerified(patient.getIsOcrVerified())
                 .build();
     }
+    @Transactional(readOnly = true)
+    public List<QueueTicket> getDoctorUpcomingQueue(Long doctorId, LocalDate fromDate) {
+        return queueTicketRepository.findDoctorUpcomingQueue(
+                doctorId, fromDate, List.of(QueueStatus.WAITING, QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
+        );
+    }
 }
