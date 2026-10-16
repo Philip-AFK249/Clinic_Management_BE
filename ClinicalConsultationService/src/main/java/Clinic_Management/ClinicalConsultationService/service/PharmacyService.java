@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -178,5 +179,10 @@ public class PharmacyService {
         Drug updated = drugRepository.save(drug);
         log.info("Điều chỉnh tồn kho thuốc #{}: {} -> {}", id, drug.getStockQuantity() - quantityChange, newStock);
         return updated;
+    }
+
+    @Transactional(readOnly = true)
+    public List<Drug> getAvailableDrugsForPrescription() {
+        return drugRepository.findAvailableDrugsForPrescription(LocalDate.now());
     }
 }

@@ -70,4 +70,10 @@ public class PharmacyController {
             @Valid @RequestBody Clinic_Management.ClinicalConsultationService.dto.AdjustStockRequest request) {
         return ResponseEntity.ok(pharmacyService.adjustDrugStock(id, request.getQuantityChange()));
     }
+
+    @GetMapping("/drugs/available")
+    @Operation(summary = "Lấy danh mục thuốc còn tồn kho (stock > 0), còn hạn và đang active phục vụ AI gợi ý đơn thuốc")
+    public ResponseEntity<List<Drug>> getAvailableDrugs() {
+        return ResponseEntity.ok(pharmacyService.getAvailableDrugsForPrescription());
+    }
 }

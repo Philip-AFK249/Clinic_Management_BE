@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "drugs")
@@ -46,4 +47,7 @@ public class Drug {
     @Builder.Default
     @Column(nullable = false)
     private Boolean active = true;
+
+    @Column(name = "expiry_date")
+    private LocalDate expiryDate;
 }
