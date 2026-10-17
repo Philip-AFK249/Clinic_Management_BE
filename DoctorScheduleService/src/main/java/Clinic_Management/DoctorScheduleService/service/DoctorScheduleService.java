@@ -35,13 +35,27 @@ public class DoctorScheduleService {
         Department department = departmentRepository.findById(request.getDepartmentId())
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Chuyên khoa có ID: " + request.getDepartmentId()));
 
+        String resolvedNurseName = request.getNurseName();
+        Long resolvedNurseId = request.getNurseId();
+
+        if (resolvedNurseName == null || resolvedNurseName.isBlank()) {
+            resolvedNurseName = switch (department.getId().intValue()) {
+                case 1 -> "ĐD. Trịnh Thu Hằng";
+                case 2 -> "ĐD. Đỗ Phương Mai";
+                case 3 -> "ĐD. Nguyễn Thảo Ly";
+                default -> "ĐD. Phụ tá Lâm sàng";
+            };
+        }
+
         DoctorShift shift = DoctorShift.builder()
                 .doctor(doctor)
                 .department(department)
                 .shiftDate(request.getShiftDate())
                 .session(request.getSession())
                 .dutyType(request.getDutyType())
-                .maxPatientsPerSlot(4) // 4 patients per 60-minute slot as per requirement
+                .maxPatientsPerSlot(4)
+                .nurseId(resolvedNurseId)
+                .nurseName(resolvedNurseName)
                 .build();
 
         return shiftRepository.save(shift);
@@ -214,6 +228,13 @@ public class DoctorScheduleService {
                 .dutyType(shift.getDutyType())
                 .maxPatientsPerSlot(shift.getMaxPatientsPerSlot())
                 .roomNumber(shift.getDoctor().getRoomNumber())
+                .nurseId(shift.getNurseId())
+                .nurseName(shift.getNurseName() != null ? shift.getNurseName() : switch (shift.getDepartment().getId().intValue()) {
+                    case 1 -> "ĐD. Trịnh Thu Hằng";
+                    case 2 -> "ĐD. Đỗ Phương Mai";
+                    case 3 -> "ĐD. Nguyễn Thảo Ly";
+                    default -> "ĐD. Phụ tá";
+                })
                 .build();
     }
 

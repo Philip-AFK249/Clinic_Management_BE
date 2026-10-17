@@ -251,4 +251,19 @@ public class AuthService {
         userRepository.delete(patient);
         log.info("Admin đã xóa tài khoản Bệnh nhân #{}: {}", patientId, patient.getFullName());
     }
+
+    @Transactional(readOnly = true)
+    public List<AuthResponse> getStaffDirectory() {
+        List<UserRole> staffRoles = List.of(
+                UserRole.DOCTOR,
+                UserRole.NURSE,
+                UserRole.PHARMACIST,
+                UserRole.RECEPTIONIST,
+                UserRole.ADMIN
+        );
+        return userRepository.findByRoleInOrderByCreatedAtDesc(staffRoles).stream()
+                .filter(u -> Boolean.TRUE.equals(u.getActive()))
+                .map(user -> mapToAuthResponse(user, null))
+                .toList();
+    }
 }

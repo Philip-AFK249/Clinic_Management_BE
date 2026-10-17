@@ -24,4 +24,7 @@ public class CreateShiftRequest {
 
     @NotNull(message = "Loại ca trực không được để trống")
     private DutyType dutyType;
+
+    private Long nurseId;
+    private String nurseName;
 }

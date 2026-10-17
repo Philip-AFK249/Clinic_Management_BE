@@ -55,8 +55,7 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
     @Query("SELECT q FROM QueueTicket q JOIN FETCH q.patient WHERE q.ticketNumber = :ticketNumber")
     Optional<QueueTicket> findByTicketNumberWithPatient(@Param("ticketNumber") String ticketNumber);
     Optional<QueueTicket> findTopByTicketNumberOrderByAppointmentDateDesc(String ticketNumber);
-    Optional<QueueTicket> findByAppointmentDateAndTicketNumber(LocalDate appointmentDate, String ticketNumber);    List<QueueTicket> findByDepartmentIdAndAppointmentDateAndStatusIn(Long departmentId, LocalDate appointmentDate, List<QueueStatus> statuses);
-    List<QueueTicket> findByAppointmentDateAndStatusIn(LocalDate appointmentDate, List<QueueStatus> statuses);
+    Optional<QueueTicket> findByAppointmentDateAndTicketNumber(LocalDate appointmentDate, String ticketNumber);
 
     @Query("""
     SELECT q FROM QueueTicket q
@@ -101,6 +100,39 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
     List<QueueTicket> findDoctorUpcomingQueue(
             @Param("doctorId") Long doctorId,
             @Param("fromDate") LocalDate fromDate,
+            @Param("statuses") List<QueueStatus> statuses
+    );
+
+    @Query("""
+        SELECT q FROM QueueTicket q
+        JOIN FETCH q.patient
+        WHERE q.departmentId = :departmentId
+          AND q.appointmentDate = :appointmentDate
+          AND q.status IN :statuses
+        ORDER BY
+          CASE q.priorityLevel WHEN 'P1' THEN 1 ELSE 2 END ASC,
+          q.slotStartTime ASC,
+          q.checkInTime ASC
+    """)
+    List<QueueTicket> findByDepartmentIdAndAppointmentDateAndStatusIn(
+            @Param("departmentId") Long departmentId,
+            @Param("appointmentDate") LocalDate appointmentDate,
+            @Param("statuses") List<QueueStatus> statuses
+    );
+
+    @Query("""
+        SELECT q FROM QueueTicket q
+        JOIN FETCH q.patient
+        WHERE q.appointmentDate = :appointmentDate
+          AND q.status IN :statuses
+        ORDER BY
+          q.departmentId ASC,
+          CASE q.priorityLevel WHEN 'P1' THEN 1 ELSE 2 END ASC,
+          q.slotStartTime ASC,
+          q.checkInTime ASC
+    """)
+    List<QueueTicket> findByAppointmentDateAndStatusIn(
+            @Param("appointmentDate") LocalDate appointmentDate,
             @Param("statuses") List<QueueStatus> statuses
     );
 }

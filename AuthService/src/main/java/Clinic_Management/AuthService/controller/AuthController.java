@@ -90,4 +90,10 @@ public class AuthController {
         authService.deletePatientByAdmin(id);
         return ResponseEntity.ok(Map.of("message", "Đã xóa hồ sơ bệnh nhân thành công"));
     }
+
+    @GetMapping("/staff-directory")
+    @Operation(summary = "Lấy danh bạ tất cả nhân viên theo khoa phục vụ chọn tài khoản đăng nhập nhanh")
+    public ResponseEntity<List<AuthResponse>> getStaffDirectory() {
+        return ResponseEntity.ok(authService.getStaffDirectory());
+    }
 }

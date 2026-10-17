@@ -23,6 +23,8 @@ public class DoctorShiftResponse {
     private DutyType dutyType;
     private Integer maxPatientsPerSlot;
     private String roomNumber;
+    private Long nurseId;
+    private String nurseName;
 
     @Data
     @Builder

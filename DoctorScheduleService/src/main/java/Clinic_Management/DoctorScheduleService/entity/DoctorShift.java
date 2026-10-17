@@ -43,4 +43,10 @@ public class DoctorShift {
     @Builder.Default
     @Column(nullable = false)
     private Integer maxPatientsPerSlot = 4;
+
+    @Column(name = "nurse_id")
+    private Long nurseId;
+
+    @Column(name = "nurse_name")
+    private String nurseName;
 }
