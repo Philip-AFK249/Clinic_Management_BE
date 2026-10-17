@@ -141,6 +141,27 @@ public class QueueService {
         );
     }
 
+    @Transactional
+    public QueueTicket updateTicketVitals(String ticketNumber, Clinic_Management.PatientIntakeService.dto.UpdateVitalsRequest req) {
+        QueueTicket ticket = queueTicketRepository
+                .findByAppointmentDateAndTicketNumber(LocalDate.now(), ticketNumber)
+                .or(() -> queueTicketRepository.findTopByTicketNumberOrderByAppointmentDateDesc(ticketNumber))
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phiếu khám: " + ticketNumber));
+
+        ticket.setBloodPressure(req.getBloodPressure());
+        ticket.setHeartRate(req.getHeartRate());
+        ticket.setTemperature(req.getTemperature());
+        ticket.setSpo2(req.getSpo2());
+        ticket.setWeightKg(req.getWeightKg());
+        ticket.setHeightCm(req.getHeightCm());
+        ticket.setNurseNotes(req.getNurseNotes());
+
+        log.info("Điều dưỡng cập nhật sinh hiệu cho phiếu {}: HA={}, Mạch={}, SpO2={}",
+                ticketNumber, req.getBloodPressure(), req.getHeartRate(), req.getSpo2());
+
+        return queueTicketRepository.save(ticket);
+    }
+
     private QueueTicketDetailResponse mapToDetailResponse(QueueTicket ticket, Patient patient) {
         return QueueTicketDetailResponse.builder()
                 .ticketNumber(ticket.getTicketNumber())
@@ -167,6 +188,13 @@ public class QueueService {
                 .phone(patient != null ? patient.getPhone() : null)
                 .address(patient != null ? patient.getAddress() : null)
                 .isOcrVerified(patient != null && Boolean.TRUE.equals(patient.getIsOcrVerified()))
+                .bloodPressure(ticket.getBloodPressure())
+                .heartRate(ticket.getHeartRate())
+                .temperature(ticket.getTemperature())
+                .spo2(ticket.getSpo2())
+                .weightKg(ticket.getWeightKg())
+                .heightCm(ticket.getHeightCm())
+                .nurseNotes(ticket.getNurseNotes())
                 .build();
     }
 }

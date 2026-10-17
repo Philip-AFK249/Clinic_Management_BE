@@ -5,6 +5,7 @@ import Clinic_Management.PatientIntakeService.entity.QueueTicket;
 import Clinic_Management.PatientIntakeService.service.QueueService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -87,5 +88,13 @@ public class QueueController {
             return ResponseEntity.noContent().build();
         }
         return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/tickets/{ticketNumber}/vitals")
+    @Operation(summary = "Điều dưỡng cập nhật dấu hiệu sinh tồn đo được tại trạm điều dưỡng")
+    public ResponseEntity<QueueTicket> updateTicketVitals(
+            @PathVariable String ticketNumber,
+            @Valid @RequestBody Clinic_Management.PatientIntakeService.dto.UpdateVitalsRequest request) {
+        return ResponseEntity.ok(queueService.updateTicketVitals(ticketNumber, request));
     }
 }

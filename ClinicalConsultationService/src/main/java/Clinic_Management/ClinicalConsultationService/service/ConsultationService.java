@@ -26,30 +26,6 @@ public class ConsultationService {
     private final DrugRepository drugRepository;
     private final IntakeQueueClient intakeQueueClient;
 
-
-    @Transactional
-    public EncounterResponse startEncounter(StartEncounterRequest request) {
-        Encounter encounter = encounterRepository.findByTicketNumber(request.getTicketNumber())
-                .orElseGet(() -> Encounter.builder()
-                        .ticketNumber(request.getTicketNumber())
-                        .patientId(request.getPatientId())
-                        .patientName(request.getPatientName())
-                        .doctorId(request.getDoctorId())
-                        .doctorName(request.getDoctorName())
-                        .departmentId(request.getDepartmentId())
-                        .encounterDate(LocalDate.now())
-                        .status(EncounterStatus.IN_PROGRESS)
-                        .build());
-
-        Encounter saved = encounterRepository.save(encounter);
-
-        // Bắn tín hiệu sang PatientIntakeService (port 8082)[cite: 4]
-        intakeQueueClient.updateTicketStatus(request.getTicketNumber(), "IN_CONSULTATION");
-
-        return mapToEncounterResponse(saved, null);
-    }
-
-
     @Transactional
     public EncounterResponse completeEncounter(Long encounterId, CompleteEncounterRequest request) {
         Encounter encounter = encounterRepository.findById(encounterId)
@@ -152,6 +128,37 @@ public class ConsultationService {
 
         Prescription saved = prescriptionRepository.save(prescription);
         return saved.getId();
+    }
+
+    @Transactional
+    public EncounterResponse startEncounter(StartEncounterRequest request) {
+        Encounter encounter = encounterRepository.findByTicketNumber(request.getTicketNumber())
+                .orElseGet(() -> Encounter.builder()
+                        .ticketNumber(request.getTicketNumber())
+                        .patientId(request.getPatientId())
+                        .patientName(request.getPatientName())
+                        .doctorId(request.getDoctorId())
+                        .doctorName(request.getDoctorName())
+                        .departmentId(request.getDepartmentId())
+                        .encounterDate(LocalDate.now())
+                        .status(EncounterStatus.IN_PROGRESS)
+                        .bloodPressure(request.getBloodPressure())
+                        .heartRate(request.getHeartRate())
+                        .temperature(request.getTemperature())
+                        .spo2(request.getSpo2())
+                        .build());
+
+        if (encounter.getBloodPressure() == null && request.getBloodPressure() != null) {
+            encounter.setBloodPressure(request.getBloodPressure());
+            encounter.setHeartRate(request.getHeartRate());
+            encounter.setTemperature(request.getTemperature());
+            encounter.setSpo2(request.getSpo2());
+        }
+
+        Encounter saved = encounterRepository.save(encounter);
+        intakeQueueClient.updateTicketStatus(request.getTicketNumber(), "IN_CONSULTATION");
+
+        return mapToEncounterResponse(saved, null);
     }
 
     private EncounterResponse mapToEncounterResponse(Encounter e, Long prescriptionId) {

@@ -89,4 +89,24 @@ public class QueueTicket {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "blood_pressure", length = 20)
+    private String bloodPressure;
+
+    @Column(name = "heart_rate")
+    private Integer heartRate;
+
+    @Column(name = "temperature", length = 10)
+    private String temperature;
+
+    @Column(name = "spo2")
+    private Integer spo2;
+
+    @Column(name = "weight_kg")
+    private Double weightKg;
+
+    @Column(name = "height_cm")
+    private Double heightCm;
+
+    @Column(name = "nurse_notes", columnDefinition = "TEXT")
+    private String nurseNotes;
 }

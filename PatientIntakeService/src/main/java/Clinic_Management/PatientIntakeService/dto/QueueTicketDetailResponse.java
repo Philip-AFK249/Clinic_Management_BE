@@ -44,4 +44,12 @@ public class QueueTicketDetailResponse {
     private String phone;
     private String address;
     private Boolean isOcrVerified;
+
+    private String bloodPressure;
+    private Integer heartRate;
+    private String temperature;
+    private Integer spo2;
+    private Double weightKg;
+    private Double heightCm;
+    private String nurseNotes;
 }

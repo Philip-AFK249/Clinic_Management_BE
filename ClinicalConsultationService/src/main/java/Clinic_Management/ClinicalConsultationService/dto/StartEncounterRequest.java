@@ -25,4 +25,8 @@ public class StartEncounterRequest {
     private Long departmentId;
 
     private String insuranceCode;
+    private String bloodPressure;
+    private Integer heartRate;
+    private String temperature;
+    private Integer spo2;
 }
