@@ -1,5 +1,5 @@
 package Clinic_Management.PatientIntakeService.service;
-
+import Clinic_Management.PatientIntakeService.clients.ScheduleServiceClient;
 import Clinic_Management.PatientIntakeService.dto.QueueTicketDetailResponse;
 import Clinic_Management.PatientIntakeService.entity.Patient;
 import Clinic_Management.PatientIntakeService.entity.QueueStatus;
@@ -20,6 +20,7 @@ import java.util.List;
 public class QueueService {
 
     private final QueueTicketRepository queueTicketRepository;
+    private final ScheduleServiceClient scheduleClient;
 
     @Transactional(readOnly = true)
     public List<QueueTicket> getDoctorActiveQueue(Long doctorId, LocalDate date) {
@@ -67,15 +68,23 @@ public class QueueService {
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phiếu khám có mã: " + ticketNumber));
 
         ticket.setStatus(status);
+        QueueTicket saved = queueTicketRepository.save(ticket);
         log.info("Cập nhật trạng thái phiếu {} sang {}", ticketNumber, status);
-        return queueTicketRepository.save(ticket);
+
+        if (status == QueueStatus.CANCELLED) {
+            scheduleClient.releaseSlot(ticketNumber);
+        }
+
+        return saved;
     }
 
     @Transactional(readOnly = true)
     public QueueTicketDetailResponse getTicketDetails(String ticketNumber) {
-        QueueTicket ticket = queueTicketRepository.findByTicketNumberWithPatient(ticketNumber)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thông tin phiếu khám: " + ticketNumber));
-
+        List<QueueTicket> tickets = queueTicketRepository.findByTicketNumberWithPatientOrderByDateDesc(ticketNumber);
+        if (tickets.isEmpty()) {
+            throw new IllegalArgumentException("Không tìm thấy thông tin phiếu khám: " + ticketNumber);
+        }
+        QueueTicket ticket = tickets.get(0); // Lấy phiếu mới nhất, tránh lỗi 500 do trùng mã khác ngày
         return mapToDetailResponse(ticket, ticket.getPatient());
     }
 
@@ -91,7 +100,7 @@ public class QueueService {
         );
     }
 
-    @Transactional(noRollbackFor = IllegalArgumentException.class)
+    @Transactional(readOnly = true)
     public QueueTicketDetailResponse getActiveTicketByPatientId(Long patientId) {
         List<QueueTicket> tickets = queueTicketRepository.findActiveTicketsByPatientId(
                 patientId,
@@ -99,25 +108,17 @@ public class QueueService {
         );
 
         if (tickets.isEmpty()) {
-            throw new IllegalArgumentException("Bệnh nhân hiện không có phiếu khám nào đang hoạt động.");
+            return null; // Trả về null an toàn thay vì ném 400 Bad Request
         }
 
         QueueTicket ticket = tickets.get(0);
-
-        // Tự động đóng phiếu quá ngày và lưu vào DB (không bị rollback bởi IllegalArgumentException)
-        if (ticket.getAppointmentDate().isBefore(LocalDate.now())) {
-            ticket.setStatus(QueueStatus.CANCELLED);
-            queueTicketRepository.save(ticket);
-            throw new IllegalArgumentException("Phiếu khám trước đó đã hết hạn do qua ngày hẹn.");
-        }
-
         return mapToDetailResponse(ticket, ticket.getPatient());
     }
 
-    @Transactional(noRollbackFor = IllegalArgumentException.class)
+    @Transactional(readOnly = true)
     public QueueTicketDetailResponse getActiveTicketByIdentifier(String identifier) {
         if (identifier == null || identifier.isBlank()) {
-            throw new IllegalArgumentException("Thông tin định danh bệnh nhân không được để trống.");
+            return null;
         }
 
         List<QueueTicket> tickets = queueTicketRepository.findActiveTicketsByIdentifier(
@@ -126,17 +127,10 @@ public class QueueService {
         );
 
         if (tickets.isEmpty()) {
-            throw new IllegalArgumentException("Bệnh nhân hiện không có phiếu khám nào đang hoạt động.");
+            return null; // Trả về null để HTTP trả 200/204 thay vì văng 400 đỏ console
         }
 
         QueueTicket ticket = tickets.get(0);
-
-        if (ticket.getAppointmentDate().isBefore(LocalDate.now())) {
-            ticket.setStatus(QueueStatus.CANCELLED);
-            queueTicketRepository.save(ticket);
-            throw new IllegalArgumentException("Phiếu khám trước đó đã hết hạn do qua ngày hẹn.");
-        }
-
         return mapToDetailResponse(ticket, ticket.getPatient());
     }
 
@@ -147,9 +141,6 @@ public class QueueService {
         );
     }
 
-    // =========================================================================
-    // HELPER MAPPING FUNCTION
-    // =========================================================================
     private QueueTicketDetailResponse mapToDetailResponse(QueueTicket ticket, Patient patient) {
         return QueueTicketDetailResponse.builder()
                 .ticketNumber(ticket.getTicketNumber())
@@ -166,16 +157,16 @@ public class QueueService {
                 .chiefComplaint(ticket.getChiefComplaint())
                 .checkInTime(ticket.getCheckInTime())
                 .calledAt(ticket.getCalledAt())
-                .patientId(patient.getId())
-                .patientFullName(patient.getFullName())
-                .identityCardNumber(patient.getIdentityCardNumber())
-                .insuranceCode(patient.getInsuranceCode())
-                .initialHospitalCode(patient.getInitialHospitalCode())
-                .dateOfBirth(patient.getDateOfBirth())
-                .gender(patient.getGender())
-                .phone(patient.getPhone())
-                .address(patient.getAddress())
-                .isOcrVerified(patient.getIsOcrVerified())
+                .patientId(patient != null ? patient.getId() : null)
+                .patientFullName(patient != null ? patient.getFullName() : null)
+                .identityCardNumber(patient != null ? patient.getIdentityCardNumber() : null)
+                .insuranceCode(patient != null ? patient.getInsuranceCode() : null)
+                .initialHospitalCode(patient != null ? patient.getInitialHospitalCode() : null)
+                .dateOfBirth(patient != null ? patient.getDateOfBirth() : null)
+                .gender(patient != null ? patient.getGender() : null)
+                .phone(patient != null ? patient.getPhone() : null)
+                .address(patient != null ? patient.getAddress() : null)
+                .isOcrVerified(patient != null && Boolean.TRUE.equals(patient.getIsOcrVerified()))
                 .build();
     }
 }

@@ -52,34 +52,43 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
             @Param("status") QueueStatus status
     );
 
-    @Query("SELECT q FROM QueueTicket q JOIN FETCH q.patient WHERE q.ticketNumber = :ticketNumber")
-    Optional<QueueTicket> findByTicketNumberWithPatient(@Param("ticketNumber") String ticketNumber);
+    // Tìm vé kèm thông tin bệnh nhân - sắp xếp lấy ngày mới nhất tránh lỗi 500 IncorrectResultSize
+    @Query("""
+        SELECT q FROM QueueTicket q 
+        JOIN FETCH q.patient 
+        WHERE q.ticketNumber = :ticketNumber 
+        ORDER BY q.appointmentDate DESC
+    """)
+    List<QueueTicket> findByTicketNumberWithPatientOrderByDateDesc(@Param("ticketNumber") String ticketNumber);
+
     Optional<QueueTicket> findTopByTicketNumberOrderByAppointmentDateDesc(String ticketNumber);
     Optional<QueueTicket> findByAppointmentDateAndTicketNumber(LocalDate appointmentDate, String ticketNumber);
 
+    // LẤY VÉ ĐANG HOẠT ĐỘNG: Tìm từ ngày hôm nay trở đi (>= CURRENT_DATE) thay vì chỉ đúng hôm nay (= CURRENT_DATE)
     @Query("""
-    SELECT q FROM QueueTicket q
-    JOIN FETCH q.patient
-    WHERE q.patient.id = :patientId
-      AND q.appointmentDate = CURRENT_DATE
-      AND q.status IN :statuses
-    ORDER BY q.slotStartTime DESC
-""")
+        SELECT q FROM QueueTicket q
+        JOIN FETCH q.patient
+        WHERE q.patient.id = :patientId
+          AND q.appointmentDate >= CURRENT_DATE
+          AND q.status IN :statuses
+        ORDER BY q.appointmentDate ASC, q.slotStartTime ASC
+    """)
     List<QueueTicket> findActiveTicketsByPatientId(
             @Param("patientId") Long patientId,
             @Param("statuses") List<QueueStatus> statuses
     );
 
+    // LẤY VÉ THEO IDENTIFIER: Tìm từ hôm nay trở đi (>= CURRENT_DATE)
     @Query("""
-    SELECT q FROM QueueTicket q
-    JOIN FETCH q.patient
-    WHERE (q.patient.phone = :identifier 
-        OR q.patient.identityCardNumber = :identifier 
-        OR q.patient.insuranceCode = :identifier)
-      AND q.appointmentDate = CURRENT_DATE
-      AND q.status IN :statuses
-    ORDER BY q.slotStartTime DESC
-""")
+        SELECT q FROM QueueTicket q
+        JOIN FETCH q.patient
+        WHERE (q.patient.phone = :identifier 
+            OR q.patient.identityCardNumber = :identifier 
+            OR q.patient.insuranceCode = :identifier)
+          AND q.appointmentDate >= CURRENT_DATE
+          AND q.status IN :statuses
+        ORDER BY q.appointmentDate ASC, q.slotStartTime ASC
+    """)
     List<QueueTicket> findActiveTicketsByIdentifier(
             @Param("identifier") String identifier,
             @Param("statuses") List<QueueStatus> statuses
@@ -132,6 +141,18 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
           q.checkInTime ASC
     """)
     List<QueueTicket> findByAppointmentDateAndStatusIn(
+            @Param("appointmentDate") LocalDate appointmentDate,
+            @Param("statuses") List<QueueStatus> statuses
+    );
+
+    @Query("""
+        SELECT COUNT(q) > 0 FROM QueueTicket q
+        WHERE q.patient.id = :patientId
+          AND q.appointmentDate = :appointmentDate
+          AND q.status IN :statuses
+    """)
+    boolean existsActiveTicketForPatientOnDate(
+            @Param("patientId") Long patientId,
             @Param("appointmentDate") LocalDate appointmentDate,
             @Param("statuses") List<QueueStatus> statuses
     );

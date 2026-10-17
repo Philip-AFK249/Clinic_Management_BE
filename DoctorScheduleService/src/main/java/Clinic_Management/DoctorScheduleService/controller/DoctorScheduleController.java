@@ -83,4 +83,11 @@ public class DoctorScheduleController {
     public ResponseEntity<AssignDoctorResponse> assignDoctor(@Valid @RequestBody AssignDoctorRequest request) {
         return ResponseEntity.ok(scheduleService.assignDoctorToSlot(request));
     }
+
+    @DeleteMapping("/assignments/{ticketNumber}")
+    @Operation(summary = "Giải phóng slot khám khi phiếu khám hoặc lịch hẹn bị hủy")
+    public ResponseEntity<Void> releaseSlot(@PathVariable String ticketNumber) {
+        scheduleService.releaseSlotAssignment(ticketNumber);
+        return ResponseEntity.noContent().build();
+    }
 }

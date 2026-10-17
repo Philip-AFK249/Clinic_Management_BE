@@ -50,4 +50,15 @@ public class ScheduleServiceClient {
             throw new IllegalStateException("Không thể kết nối đến DoctorScheduleService (:8081): " + ex.getMessage());
         }
     }
+
+    public void releaseSlot(String ticketNumber) {
+        try {
+            restClient.delete()
+                    .uri("/assignments/{ticketNumber}", ticketNumber)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (Exception ex) {
+            System.err.println("Không thể giải phóng slot tại DoctorScheduleService cho phiếu " + ticketNumber + ": " + ex.getMessage());
+        }
+    }
 }

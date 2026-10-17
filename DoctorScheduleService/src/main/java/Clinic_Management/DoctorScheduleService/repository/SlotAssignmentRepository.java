@@ -10,13 +10,16 @@ import java.util.List;
 
 @Repository
 public interface SlotAssignmentRepository extends JpaRepository<SlotAssignment, Long> {
-    long countByDoctorIdAndAppointmentDateAndSlotStartTime(
-            Long doctorId, LocalDate appointmentDate, LocalTime slotStartTime
+
+    long countByDoctorIdAndAppointmentDateAndSlotStartTimeAndStatus(
+            Long doctorId, LocalDate appointmentDate, LocalTime slotStartTime, String status
     );
 
-    long countByDepartmentIdAndAppointmentDateAndSlotStartTime(
-            Long departmentId, LocalDate appointmentDate, LocalTime slotStartTime
+    long countByDepartmentIdAndAppointmentDateAndSlotStartTimeAndStatus(
+            Long departmentId, LocalDate appointmentDate, LocalTime slotStartTime, String status
     );
+
+    List<SlotAssignment> findByTicketNumber(String ticketNumber);
 
     List<SlotAssignment> findByDepartmentIdAndAppointmentDateAndSlotStartTime(
             Long departmentId, LocalDate appointmentDate, LocalTime slotStartTime

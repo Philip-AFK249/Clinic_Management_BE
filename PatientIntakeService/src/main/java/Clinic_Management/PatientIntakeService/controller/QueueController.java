@@ -62,21 +62,30 @@ public class QueueController {
         return ResponseEntity.ok(queueService.getReceptionQueue(departmentId, targetDate));
     }
 
-    @GetMapping("/patient/{patientId}/active")
-    @Operation(summary = "Lấy phiếu khám đang hoạt động gần nhất của bệnh nhân")
-    public ResponseEntity<QueueTicketDetailResponse> getActivePatientTicket(@PathVariable Long patientId) {
-        return ResponseEntity.ok(queueService.getActiveTicketByPatientId(patientId));
-    }
-
-    @GetMapping("/patient/active")
-    public ResponseEntity<QueueTicketDetailResponse> getActivePatientTicket(
-            @RequestParam(required = false) String identifier) {
-        return ResponseEntity.ok(queueService.getActiveTicketByIdentifier(identifier));
-    }
-
     @GetMapping("/doctor/{doctorId}/upcoming")
     @Operation(summary = "Lấy toàn bộ phiếu khám đang chờ từ hôm nay trở đi (tránh sót phiếu đặt trước ngày mai)")
     public ResponseEntity<List<QueueTicket>> getDoctorUpcomingQueue(@PathVariable Long doctorId) {
         return ResponseEntity.ok(queueService.getDoctorUpcomingQueue(doctorId, LocalDate.now()));
+    }
+
+    @GetMapping("/patient/{patientId}/active")
+    @Operation(summary = "Lấy phiếu khám đang hoạt động gần nhất của bệnh nhân")
+    public ResponseEntity<QueueTicketDetailResponse> getActivePatientTicket(@PathVariable Long patientId) {
+        QueueTicketDetailResponse response = queueService.getActiveTicketByPatientId(patientId);
+        if (response == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/patient/active")
+    @Operation(summary = "Lấy phiếu khám theo số điện thoại, CCCD hoặc thẻ BHYT")
+    public ResponseEntity<QueueTicketDetailResponse> getActivePatientTicket(
+            @RequestParam(required = false) String identifier) {
+        QueueTicketDetailResponse response = queueService.getActiveTicketByIdentifier(identifier);
+        if (response == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(response);
     }
 }
