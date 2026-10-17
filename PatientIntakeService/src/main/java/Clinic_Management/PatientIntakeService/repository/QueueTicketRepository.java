@@ -54,35 +54,38 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
 
     @Query("SELECT q FROM QueueTicket q JOIN FETCH q.patient WHERE q.ticketNumber = :ticketNumber")
     Optional<QueueTicket> findByTicketNumberWithPatient(@Param("ticketNumber") String ticketNumber);
-
-    Optional<QueueTicket> findByTicketNumber(String ticketNumber);
-    List<QueueTicket> findByDepartmentIdAndAppointmentDateAndStatusIn(Long departmentId, LocalDate appointmentDate, List<QueueStatus> statuses);
+    Optional<QueueTicket> findTopByTicketNumberOrderByAppointmentDateDesc(String ticketNumber);
+    Optional<QueueTicket> findByAppointmentDateAndTicketNumber(LocalDate appointmentDate, String ticketNumber);    List<QueueTicket> findByDepartmentIdAndAppointmentDateAndStatusIn(Long departmentId, LocalDate appointmentDate, List<QueueStatus> statuses);
     List<QueueTicket> findByAppointmentDateAndStatusIn(LocalDate appointmentDate, List<QueueStatus> statuses);
 
     @Query("""
-        SELECT q FROM QueueTicket q
-        JOIN FETCH q.patient
-        WHERE q.patient.id = :patientId
-          AND q.status IN :statuses
-        ORDER BY q.appointmentDate DESC, q.slotStartTime DESC
-    """)
+    SELECT q FROM QueueTicket q
+    JOIN FETCH q.patient
+    WHERE q.patient.id = :patientId
+      AND q.appointmentDate = CURRENT_DATE
+      AND q.status IN :statuses
+    ORDER BY q.slotStartTime DESC
+""")
     List<QueueTicket> findActiveTicketsByPatientId(
             @Param("patientId") Long patientId,
             @Param("statuses") List<QueueStatus> statuses
     );
+
     @Query("""
-        SELECT q FROM QueueTicket q
-        JOIN FETCH q.patient
-        WHERE (q.patient.phone = :identifier 
-            OR q.patient.identityCardNumber = :identifier 
-            OR q.patient.insuranceCode = :identifier)
-          AND q.status IN :statuses
-        ORDER BY q.appointmentDate DESC, q.slotStartTime DESC
-    """)
+    SELECT q FROM QueueTicket q
+    JOIN FETCH q.patient
+    WHERE (q.patient.phone = :identifier 
+        OR q.patient.identityCardNumber = :identifier 
+        OR q.patient.insuranceCode = :identifier)
+      AND q.appointmentDate = CURRENT_DATE
+      AND q.status IN :statuses
+    ORDER BY q.slotStartTime DESC
+""")
     List<QueueTicket> findActiveTicketsByIdentifier(
             @Param("identifier") String identifier,
             @Param("statuses") List<QueueStatus> statuses
     );
+
     @Query("""
         SELECT q FROM QueueTicket q
         JOIN FETCH q.patient

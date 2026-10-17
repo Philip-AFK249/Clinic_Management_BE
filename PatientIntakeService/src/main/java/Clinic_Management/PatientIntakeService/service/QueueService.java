@@ -28,7 +28,6 @@ public class QueueService {
         );
     }
 
-
     @Transactional
     public QueueTicket callNextPatient(Long doctorId, LocalDate date) {
         List<QueueTicket> activeConsultations = queueTicketRepository.findDoctorActiveQueue(
@@ -60,10 +59,11 @@ public class QueueService {
         return queueTicketRepository.save(nextTicket);
     }
 
-
     @Transactional
     public QueueTicket updateTicketStatus(String ticketNumber, QueueStatus status) {
-        QueueTicket ticket = queueTicketRepository.findByTicketNumber(ticketNumber)
+        QueueTicket ticket = queueTicketRepository
+                .findByAppointmentDateAndTicketNumber(LocalDate.now(), ticketNumber)
+                .or(() -> queueTicketRepository.findTopByTicketNumberOrderByAppointmentDateDesc(ticketNumber))
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phiếu khám có mã: " + ticketNumber));
 
         ticket.setStatus(status);
@@ -76,34 +76,7 @@ public class QueueService {
         QueueTicket ticket = queueTicketRepository.findByTicketNumberWithPatient(ticketNumber)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thông tin phiếu khám: " + ticketNumber));
 
-        Patient patient = ticket.getPatient();
-
-        return QueueTicketDetailResponse.builder()
-                .ticketNumber(ticket.getTicketNumber())
-                .departmentId(ticket.getDepartmentId())
-                .departmentName(ticket.getDepartmentName())
-                .doctorId(ticket.getDoctorId())
-                .doctorName(ticket.getDoctorName())
-                .roomNumber(ticket.getRoomNumber())
-                .appointmentDate(ticket.getAppointmentDate())
-                .slotStartTime(ticket.getSlotStartTime())
-                .priorityLevel(ticket.getPriorityLevel())
-                .intakeSource(ticket.getIntakeSource())
-                .status(ticket.getStatus())
-                .chiefComplaint(ticket.getChiefComplaint())
-                .checkInTime(ticket.getCheckInTime())
-                .calledAt(ticket.getCalledAt())
-                .patientId(patient.getId())
-                .patientFullName(patient.getFullName())
-                .identityCardNumber(patient.getIdentityCardNumber())
-                .insuranceCode(patient.getInsuranceCode())
-                .initialHospitalCode(patient.getInitialHospitalCode())
-                .dateOfBirth(patient.getDateOfBirth())
-                .gender(patient.getGender())
-                .phone(patient.getPhone())
-                .address(patient.getAddress())
-                .isOcrVerified(patient.getIsOcrVerified())
-                .build();
+        return mapToDetailResponse(ticket, ticket.getPatient());
     }
 
     @Transactional(readOnly = true)
@@ -118,7 +91,7 @@ public class QueueService {
         );
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(noRollbackFor = IllegalArgumentException.class)
     public QueueTicketDetailResponse getActiveTicketByPatientId(Long patientId) {
         List<QueueTicket> tickets = queueTicketRepository.findActiveTicketsByPatientId(
                 patientId,
@@ -130,40 +103,23 @@ public class QueueService {
         }
 
         QueueTicket ticket = tickets.get(0);
-        Patient patient = ticket.getPatient();
 
-        return QueueTicketDetailResponse.builder()
-                .ticketNumber(ticket.getTicketNumber())
-                .departmentId(ticket.getDepartmentId())
-                .departmentName(ticket.getDepartmentName())
-                .doctorId(ticket.getDoctorId())
-                .doctorName(ticket.getDoctorName())
-                .roomNumber(ticket.getRoomNumber())
-                .appointmentDate(ticket.getAppointmentDate())
-                .slotStartTime(ticket.getSlotStartTime())
-                .priorityLevel(ticket.getPriorityLevel())
-                .intakeSource(ticket.getIntakeSource())
-                .status(ticket.getStatus())
-                .chiefComplaint(ticket.getChiefComplaint())
-                .checkInTime(ticket.getCheckInTime())
-                .calledAt(ticket.getCalledAt())
-                .patientId(patient.getId())
-                .patientFullName(patient.getFullName())
-                .identityCardNumber(patient.getIdentityCardNumber())
-                .insuranceCode(patient.getInsuranceCode())
-                .initialHospitalCode(patient.getInitialHospitalCode())
-                .dateOfBirth(patient.getDateOfBirth())
-                .gender(patient.getGender())
-                .phone(patient.getPhone())
-                .address(patient.getAddress())
-                .isOcrVerified(patient.getIsOcrVerified())
-                .build();
+        // Tự động đóng phiếu quá ngày và lưu vào DB (không bị rollback bởi IllegalArgumentException)
+        if (ticket.getAppointmentDate().isBefore(LocalDate.now())) {
+            ticket.setStatus(QueueStatus.CANCELLED);
+            queueTicketRepository.save(ticket);
+            throw new IllegalArgumentException("Phiếu khám trước đó đã hết hạn do qua ngày hẹn.");
+        }
+
+        return mapToDetailResponse(ticket, ticket.getPatient());
     }
-    @Transactional(readOnly = true)
+
+    @Transactional(noRollbackFor = IllegalArgumentException.class)
     public QueueTicketDetailResponse getActiveTicketByIdentifier(String identifier) {
         if (identifier == null || identifier.isBlank()) {
             throw new IllegalArgumentException("Thông tin định danh bệnh nhân không được để trống.");
         }
+
         List<QueueTicket> tickets = queueTicketRepository.findActiveTicketsByIdentifier(
                 identifier.trim(),
                 List.of(QueueStatus.WAITING, QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
@@ -174,8 +130,27 @@ public class QueueService {
         }
 
         QueueTicket ticket = tickets.get(0);
-        Patient patient = ticket.getPatient();
 
+        if (ticket.getAppointmentDate().isBefore(LocalDate.now())) {
+            ticket.setStatus(QueueStatus.CANCELLED);
+            queueTicketRepository.save(ticket);
+            throw new IllegalArgumentException("Phiếu khám trước đó đã hết hạn do qua ngày hẹn.");
+        }
+
+        return mapToDetailResponse(ticket, ticket.getPatient());
+    }
+
+    @Transactional(readOnly = true)
+    public List<QueueTicket> getDoctorUpcomingQueue(Long doctorId, LocalDate fromDate) {
+        return queueTicketRepository.findDoctorUpcomingQueue(
+                doctorId, fromDate, List.of(QueueStatus.WAITING, QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
+        );
+    }
+
+    // =========================================================================
+    // HELPER MAPPING FUNCTION
+    // =========================================================================
+    private QueueTicketDetailResponse mapToDetailResponse(QueueTicket ticket, Patient patient) {
         return QueueTicketDetailResponse.builder()
                 .ticketNumber(ticket.getTicketNumber())
                 .departmentId(ticket.getDepartmentId())
@@ -202,11 +177,5 @@ public class QueueService {
                 .address(patient.getAddress())
                 .isOcrVerified(patient.getIsOcrVerified())
                 .build();
-    }
-    @Transactional(readOnly = true)
-    public List<QueueTicket> getDoctorUpcomingQueue(Long doctorId, LocalDate fromDate) {
-        return queueTicketRepository.findDoctorUpcomingQueue(
-                doctorId, fromDate, List.of(QueueStatus.WAITING, QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
-        );
     }
 }
