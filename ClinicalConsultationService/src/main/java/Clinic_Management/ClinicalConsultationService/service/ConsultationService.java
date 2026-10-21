@@ -88,12 +88,27 @@ public class ConsultationService {
             Drug drug = drugRepository.findById(itemReq.getDrugId())
                     .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thuốc có ID: " + itemReq.getDrugId()));
 
+            // 1. CHỐT CHẶN CẢNH BÁO DỊ ỨNG PENICILLIN
             if (drug.getIsPenicillinClass() && allergies != null) {
                 boolean hasPenicillinAllergy = allergies.stream()
                         .anyMatch(a -> a.toLowerCase().contains("penicillin"));
                 if (hasPenicillinAllergy) {
                     throw new IllegalStateException("CẢNH BÁO AN TOÀN: Bệnh nhân có tiền sử dị ứng với Penicillin! Không thể kê thuốc " + drug.getName());
                 }
+            }
+
+            // 2. CHỐT CHẶN KIỂM TRA TỒN KHO THUỐC NGAY KHI BÁC SĨ KÊ ĐƠN
+            if (drug.getStockQuantity() <= 0) {
+                throw new IllegalStateException(String.format(
+                        "Thuốc %s (Mã %s) hiện đã HẾT HÀNG trong kho dược (Tồn: 0). Vui lòng chọn loại thuốc thay thế.",
+                        drug.getName(), drug.getCode()
+                ));
+            }
+            if (drug.getStockQuantity() < itemReq.getQuantity()) {
+                throw new IllegalStateException(String.format(
+                        "Thuốc %s (Mã %s) không đủ số lượng tồn kho. Hiện còn: %d, Bác sĩ đang kê: %d.",
+                        drug.getName(), drug.getCode(), drug.getStockQuantity(), itemReq.getQuantity()
+                ));
             }
 
             BigDecimal itemTotal = drug.getUnitPrice().multiply(BigDecimal.valueOf(itemReq.getQuantity()));
@@ -129,7 +144,6 @@ public class ConsultationService {
         Prescription saved = prescriptionRepository.save(prescription);
         return saved.getId();
     }
-
     @Transactional
     public EncounterResponse startEncounter(StartEncounterRequest request) {
         Encounter encounter = encounterRepository.findByTicketNumber(request.getTicketNumber())
