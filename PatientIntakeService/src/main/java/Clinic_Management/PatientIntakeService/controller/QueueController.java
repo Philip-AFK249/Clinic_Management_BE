@@ -97,4 +97,18 @@ public class QueueController {
             @Valid @RequestBody Clinic_Management.PatientIntakeService.dto.UpdateVitalsRequest request) {
         return ResponseEntity.ok(queueService.updateTicketVitals(ticketNumber, request));
     }
+
+    @GetMapping("/patient/{patientId}/history")
+    @Operation(summary = "Lấy toàn bộ lịch sử các lần đặt phiếu khám của bệnh nhân theo ID")
+    public ResponseEntity<List<QueueTicketDetailResponse>> getBookingHistoryByPatientId(
+            @PathVariable Long patientId) {
+        return ResponseEntity.ok(queueService.getPatientBookingHistory(patientId, null));
+    }
+
+    @GetMapping("/patient/history")
+    @Operation(summary = "Lấy toàn bộ lịch sử đặt phiếu khám theo định danh (SĐT, CCCD, BHYT)")
+    public ResponseEntity<List<QueueTicketDetailResponse>> getBookingHistoryByIdentifier(
+            @RequestParam(required = false) String identifier) {
+        return ResponseEntity.ok(queueService.getPatientBookingHistory(null, identifier));
+    }
 }

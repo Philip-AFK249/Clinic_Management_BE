@@ -155,6 +155,9 @@ public class IntakeService {
                         .intakeSource(request.getIntakeSource())
                         .status(QueueStatus.WAITING)
                         .chiefComplaint(request.getChiefComplaint())
+                        .secondaryDepartmentId(request.getSecondaryDepartmentId())
+                        .secondaryDepartmentName(request.getSecondaryDepartmentName())
+                        .multiSpecialtyNote(request.getMultiSpecialtyNote())
                         .build();
 
                 savedTicket = queueTicketRepository.saveAndFlush(ticket);
@@ -190,6 +193,9 @@ public class IntakeService {
                 .priorityLevel(savedTicket.getPriorityLevel())
                 .checkInTime(savedTicket.getCheckInTime())
                 .message("Tiếp nhận thành công. Vui lòng di chuyển đến phòng khám được chỉ định.")
+                .secondaryDepartmentId(savedTicket.getSecondaryDepartmentId())
+                .secondaryDepartmentName(savedTicket.getSecondaryDepartmentName())
+                .multiSpecialtyNote(savedTicket.getMultiSpecialtyNote())
                 .build();
     }
     @Transactional
@@ -290,6 +296,9 @@ public class IntakeService {
                 .phone(patient != null ? patient.getPhone() : null)
                 .address(patient != null ? patient.getAddress() : null)
                 .isOcrVerified(patient != null && Boolean.TRUE.equals(patient.getIsOcrVerified()))
+                .secondaryDepartmentId(ticket.getSecondaryDepartmentId())
+                .secondaryDepartmentName(ticket.getSecondaryDepartmentName())
+                .multiSpecialtyNote(ticket.getMultiSpecialtyNote())
                 .build();
     }
 }

@@ -43,4 +43,8 @@ public class AdministrativeIntakeRequest {
     private IntakeSource intakeSource;
 
     private String chiefComplaint;
+
+    private Long secondaryDepartmentId;
+    private String secondaryDepartmentName;
+    private String multiSpecialtyNote;
 }

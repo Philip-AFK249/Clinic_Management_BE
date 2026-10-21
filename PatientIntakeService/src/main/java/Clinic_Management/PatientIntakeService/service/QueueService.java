@@ -100,7 +100,7 @@ public class QueueService {
         );
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public QueueTicketDetailResponse getActiveTicketByPatientId(Long patientId) {
         List<QueueTicket> tickets = queueTicketRepository.findActiveTicketsByPatientId(
                 patientId,
@@ -108,14 +108,24 @@ public class QueueService {
         );
 
         if (tickets.isEmpty()) {
-            return null; // Trả về null an toàn thay vì ném 400 Bad Request
+            return null;
         }
 
         QueueTicket ticket = tickets.get(0);
+
+        if (ticket.getAppointmentDate().isBefore(LocalDate.now())) {
+            ticket.setStatus(QueueStatus.CANCELLED);
+            queueTicketRepository.save(ticket);
+            scheduleClient.releaseSlot(ticket.getTicketNumber());
+            log.info("Phiếu {} ngày {} đã quá hạn so với hôm nay, tự động chuyển sang CANCELLED",
+                    ticket.getTicketNumber(), ticket.getAppointmentDate());
+            return null; // Không còn vé active
+        }
+
         return mapToDetailResponse(ticket, ticket.getPatient());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public QueueTicketDetailResponse getActiveTicketByIdentifier(String identifier) {
         if (identifier == null || identifier.isBlank()) {
             return null;
@@ -127,11 +137,37 @@ public class QueueService {
         );
 
         if (tickets.isEmpty()) {
-            return null; // Trả về null để HTTP trả 200/204 thay vì văng 400 đỏ console
+            return null;
         }
 
         QueueTicket ticket = tickets.get(0);
+
+        if (ticket.getAppointmentDate().isBefore(LocalDate.now())) {
+            ticket.setStatus(QueueStatus.CANCELLED);
+            queueTicketRepository.save(ticket);
+            scheduleClient.releaseSlot(ticket.getTicketNumber());
+            log.info("Phiếu {} ngày {} đã quá hạn so với hôm nay, tự động chuyển sang CANCELLED",
+                    ticket.getTicketNumber(), ticket.getAppointmentDate());
+            return null;
+        }
+
         return mapToDetailResponse(ticket, ticket.getPatient());
+    }
+
+    @Transactional(readOnly = true)
+    public List<QueueTicketDetailResponse> getPatientBookingHistory(Long patientId, String identifier) {
+        List<QueueTicket> tickets;
+        if (patientId != null && patientId > 0) {
+            tickets = queueTicketRepository.findBookingHistoryByPatientId(patientId);
+        } else if (identifier != null && !identifier.isBlank()) {
+            tickets = queueTicketRepository.findBookingHistoryByIdentifier(identifier.trim());
+        } else {
+            return List.of();
+        }
+
+        return tickets.stream()
+                .map(t -> mapToDetailResponse(t, t.getPatient()))
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -195,6 +231,9 @@ public class QueueService {
                 .weightKg(ticket.getWeightKg())
                 .heightCm(ticket.getHeightCm())
                 .nurseNotes(ticket.getNurseNotes())
+                .secondaryDepartmentId(ticket.getSecondaryDepartmentId())
+                .secondaryDepartmentName(ticket.getSecondaryDepartmentName())
+                .multiSpecialtyNote(ticket.getMultiSpecialtyNote())
                 .build();
     }
 }

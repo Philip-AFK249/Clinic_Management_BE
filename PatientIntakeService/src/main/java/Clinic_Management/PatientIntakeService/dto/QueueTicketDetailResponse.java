@@ -52,4 +52,7 @@ public class QueueTicketDetailResponse {
     private Double weightKg;
     private Double heightCm;
     private String nurseNotes;
+    private Long secondaryDepartmentId;
+    private String secondaryDepartmentName;
+    private String multiSpecialtyNote;
 }

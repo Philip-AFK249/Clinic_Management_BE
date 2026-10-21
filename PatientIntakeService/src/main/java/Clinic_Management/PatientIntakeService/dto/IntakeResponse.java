@@ -24,4 +24,7 @@ public class IntakeResponse {
     private TriagePriority priorityLevel;
     private LocalDateTime checkInTime;
     private String message;
+    private Long secondaryDepartmentId;
+    private String secondaryDepartmentName;
+    private String multiSpecialtyNote;
 }

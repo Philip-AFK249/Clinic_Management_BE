@@ -109,4 +109,13 @@ public class QueueTicket {
 
     @Column(name = "nurse_notes", columnDefinition = "TEXT")
     private String nurseNotes;
+
+    @Column(name = "secondary_department_id")
+    private Long secondaryDepartmentId;
+
+    @Column(name = "secondary_department_name")
+    private String secondaryDepartmentName;
+
+    @Column(name = "multi_specialty_note", columnDefinition = "TEXT")
+    private String multiSpecialtyNote;
 }
