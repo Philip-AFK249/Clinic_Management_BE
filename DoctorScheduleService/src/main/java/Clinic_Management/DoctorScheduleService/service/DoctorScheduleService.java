@@ -267,4 +267,57 @@ public class DoctorScheduleService {
                 })
                 .build();
     }
+    @Transactional
+    public DoctorShift updateShift(Long shiftId, UpdateShiftRequest request) {
+        DoctorShift shift = shiftRepository.findById(shiftId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy ca trực có ID: " + shiftId));
+
+        if (request.getDoctorId() != null) {
+            Doctor doctor = doctorRepository.findById(request.getDoctorId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Bác sĩ có ID: " + request.getDoctorId()));
+            shift.setDoctor(doctor);
+        }
+
+        if (request.getDepartmentId() != null) {
+            Department department = departmentRepository.findById(request.getDepartmentId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Chuyên khoa có ID: " + request.getDepartmentId()));
+            shift.setDepartment(department);
+        }
+
+        if (request.getShiftDate() != null) {
+            shift.setShiftDate(request.getShiftDate());
+        }
+
+        if (request.getSession() != null) {
+            shift.setSession(request.getSession());
+        }
+
+        if (request.getDutyType() != null) {
+            shift.setDutyType(request.getDutyType());
+        }
+
+        if (request.getMaxPatientsPerSlot() != null && request.getMaxPatientsPerSlot() > 0) {
+            shift.setMaxPatientsPerSlot(request.getMaxPatientsPerSlot());
+        }
+
+        if (request.getNurseId() != null) {
+            shift.setNurseId(request.getNurseId());
+        }
+
+        if (request.getNurseName() != null && !request.getNurseName().isBlank()) {
+            shift.setNurseName(request.getNurseName());
+        }
+
+        log.info("Admin đã cập nhật ca trực #{} cho BS {}", shiftId, shift.getDoctor().getFullName());
+        return shiftRepository.save(shift);
+    }
+
+    @Transactional
+    public void deleteShift(Long shiftId) {
+        DoctorShift shift = shiftRepository.findById(shiftId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy ca trực có ID: " + shiftId));
+        shiftRepository.delete(shift);
+        log.info("Admin đã xóa ca trực #{} của BS {}", shiftId, shift.getDoctor().getFullName());
+    }
+
 }

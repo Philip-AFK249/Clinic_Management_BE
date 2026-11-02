@@ -90,4 +90,19 @@ public class DoctorScheduleController {
         scheduleService.releaseSlotAssignment(ticketNumber);
         return ResponseEntity.noContent().build();
     }
+
+    @PutMapping("/shifts/{id}")
+    @Operation(summary = "Admin cập nhật thông tin ca trực của bác sĩ")
+    public ResponseEntity<DoctorShift> updateShift(
+            @PathVariable Long id,
+            @Valid @RequestBody Clinic_Management.DoctorScheduleService.dto.UpdateShiftRequest request) {
+        return ResponseEntity.ok(scheduleService.updateShift(id, request));
+    }
+
+    @DeleteMapping("/shifts/{id}")
+    @Operation(summary = "Admin xóa ca trực của bác sĩ")
+    public ResponseEntity<Void> deleteShift(@PathVariable Long id) {
+        scheduleService.deleteShift(id);
+        return ResponseEntity.noContent().build();
+    }
 }
