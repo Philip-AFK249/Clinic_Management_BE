@@ -198,6 +198,15 @@ public class QueueService {
         return queueTicketRepository.save(ticket);
     }
 
+    @Transactional(readOnly = true)
+    public List<QueueTicket> getReceptionUpcomingQueue(Long departmentId, LocalDate fromDate) {
+        return queueTicketRepository.findReceptionUpcomingQueue(
+                departmentId,
+                fromDate,
+                List.of(QueueStatus.WAITING, QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
+        );
+    }
+
     private QueueTicketDetailResponse mapToDetailResponse(QueueTicket ticket, Patient patient) {
         return QueueTicketDetailResponse.builder()
                 .ticketNumber(ticket.getTicketNumber())

@@ -173,4 +173,23 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
         ORDER BY q.appointmentDate DESC, q.slotStartTime DESC
     """)
     List<QueueTicket> findBookingHistoryByIdentifier(@Param("identifier") String identifier);
+
+    @Query("""
+        SELECT q FROM QueueTicket q
+        JOIN FETCH q.patient
+        WHERE (:departmentId IS NULL OR q.departmentId = :departmentId)
+          AND q.appointmentDate >= :fromDate
+          AND q.status IN :statuses
+        ORDER BY
+          q.appointmentDate ASC,
+          CASE q.priorityLevel WHEN 'P1' THEN 1 ELSE 2 END ASC,
+          q.slotStartTime ASC,
+          q.checkInTime ASC
+    """)
+    List<QueueTicket> findReceptionUpcomingQueue(
+            @Param("departmentId") Long departmentId,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("statuses") List<QueueStatus> statuses
+    );
+
 }

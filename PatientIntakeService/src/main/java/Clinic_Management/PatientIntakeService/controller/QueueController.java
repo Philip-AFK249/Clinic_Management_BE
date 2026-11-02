@@ -111,4 +111,13 @@ public class QueueController {
             @RequestParam(required = false) String identifier) {
         return ResponseEntity.ok(queueService.getPatientBookingHistory(null, identifier));
     }
+
+    @GetMapping("/reception/upcoming")
+    @Operation(summary = "Lấy danh sách hàng đợi từ ngày chỉ định trở đi cho Quầy tiếp đón và Trạm điều dưỡng")
+    public ResponseEntity<List<QueueTicket>> getReceptionUpcomingQueue(
+            @RequestParam(required = false) Long departmentId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate) {
+        LocalDate targetDate = (fromDate != null) ? fromDate : LocalDate.now();
+        return ResponseEntity.ok(queueService.getReceptionUpcomingQueue(departmentId, targetDate));
+    }
 }
