@@ -133,6 +133,7 @@ public class IntakeService {
                                 .departmentId(request.getDepartmentId())
                                 .appointmentDate(request.getAppointmentDate())
                                 .slotStartTime(request.getSlotStartTime())
+                                .preferredDoctorId(request.getPreferredDoctorId())
                                 .ticketNumber(ticketNumber)
                                 .patientName(patient.getFullName())
                                 .patientPhone(patient.getPhone())

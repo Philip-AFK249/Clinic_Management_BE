@@ -129,18 +129,36 @@ public class DoctorScheduleService {
         }
 
         Doctor selectedDoctor = null;
-        long minPatientCount = Long.MAX_VALUE;
 
-        for (DoctorShift shift : activeShifts) {
-            Doctor doctor = shift.getDoctor();
-            // CHỈ ĐẾM TẢI CỦA CÁC CA ĐANG BOOKED
-            long currentAssigned = slotAssignmentRepository
-                    .countByDoctorIdAndAppointmentDateAndSlotStartTimeAndStatus(
-                            doctor.getId(), date, slotStartTime, "BOOKED");
+        if (request.getPreferredDoctorId() != null) {
+            for (DoctorShift shift : activeShifts) {
+                if (shift.getDoctor().getId().equals(request.getPreferredDoctorId())) {
+                    long currentAssigned = slotAssignmentRepository
+                            .countByDoctorIdAndAppointmentDateAndSlotStartTimeAndStatus(
+                                    shift.getDoctor().getId(), date, slotStartTime, "BOOKED");
+                    if (currentAssigned < shift.getMaxPatientsPerSlot()) {
+                        selectedDoctor = shift.getDoctor();
+                        log.info("Phân bổ theo chỉ định của bệnh nhân: Bác sĩ ID {}", selectedDoctor.getId());
+                        break;
+                    } else {
+                        log.warn("Bác sĩ chỉ định #{} đã đầy slot, tự động chuyển sang cân bằng tải Least-Busy.", request.getPreferredDoctorId());
+                    }
+                }
+            }
+        }
 
-            if (currentAssigned < shift.getMaxPatientsPerSlot() && currentAssigned < minPatientCount) {
-                minPatientCount = currentAssigned;
-                selectedDoctor = doctor;
+        if (selectedDoctor == null) {
+            long minPatientCount = Long.MAX_VALUE;
+            for (DoctorShift shift : activeShifts) {
+                Doctor doctor = shift.getDoctor();
+                long currentAssigned = slotAssignmentRepository
+                        .countByDoctorIdAndAppointmentDateAndSlotStartTimeAndStatus(
+                                doctor.getId(), date, slotStartTime, "BOOKED");
+
+                if (currentAssigned < shift.getMaxPatientsPerSlot() && currentAssigned < minPatientCount) {
+                    minPatientCount = currentAssigned;
+                    selectedDoctor = doctor;
+                }
             }
         }
 
@@ -169,7 +187,7 @@ public class DoctorScheduleService {
                 .roomNumber(selectedDoctor.getRoomNumber())
                 .date(date)
                 .slotStartTime(slotStartTime)
-                .message("Phân bổ bác sĩ thành công theo cơ chế cân bằng tải.")
+                .message("Phân bổ bác sĩ thành công.")
                 .build();
     }
 

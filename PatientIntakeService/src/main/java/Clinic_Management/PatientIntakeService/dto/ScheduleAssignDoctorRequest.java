@@ -13,6 +13,7 @@ public class ScheduleAssignDoctorRequest {
     private LocalTime slotStartTime;
     private String ticketNumber;
     private String patientName;
+    private Long preferredDoctorId;
     private String patientPhone;
     private String insuranceCode;
     private String chiefComplaint;

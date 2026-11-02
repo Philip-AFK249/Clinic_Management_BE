@@ -20,7 +20,7 @@ public class AssignDoctorRequest {
 
     @NotBlank(message = "Mã số phiếu không được để trống")
     private String ticketNumber;
-
+    private Long preferredDoctorId;
     private String patientName;
     private String patientPhone;
     private String insuranceCode;

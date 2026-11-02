@@ -23,12 +23,13 @@ public class AdministrativeIntakeRequest {
     private String address;
     private Boolean isOcrVerified = false;
 
-    // Thông tin tiếp đón & điều phối
     @NotNull(message = "Chuyên khoa khám không được để trống")
     private Long departmentId;
 
     @NotBlank(message = "Tên chuyên khoa không được để trống")
     private String departmentName;
+
+    private Long preferredDoctorId;
 
     @NotNull(message = "Ngày khám không được để trống")
     private LocalDate appointmentDate;
@@ -37,7 +38,7 @@ public class AdministrativeIntakeRequest {
     private LocalTime slotStartTime;
 
     @NotNull(message = "Độ ưu tiên không được để trống")
-    private TriagePriority priorityLevel; // P1, P2, P3
+    private TriagePriority priorityLevel;
 
     @NotNull(message = "Nguồn tiếp nhận không được để trống")
     private IntakeSource intakeSource;
