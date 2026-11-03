@@ -211,4 +211,11 @@ public class ConsultationService {
                 .map(encounter -> mapToEncounterResponse(encounter, null))
                 .toList();
     }
+
+    @Transactional(readOnly = true)
+    public List<EncounterResponse> getDoctorEncounters(Long doctorId) {
+        return encounterRepository.findDoctorEncounters(doctorId).stream()
+                .map(encounter -> mapToEncounterResponse(encounter, null))
+                .toList();
+    }
 }

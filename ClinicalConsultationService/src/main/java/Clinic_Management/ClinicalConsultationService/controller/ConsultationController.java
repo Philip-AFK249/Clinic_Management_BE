@@ -39,4 +39,10 @@ public class ConsultationController {
     public ResponseEntity<List<EncounterResponse>> getPatientHistory(@PathVariable Long patientId) {
         return ResponseEntity.ok(consultationService.getPatientHistory(patientId));
     }
+
+    @GetMapping("/doctor/{doctorId}")
+    @Operation(summary = "Lấy toàn bộ lịch sử ca khám và danh sách bệnh nhân do Bác sĩ đã từng khám")
+    public ResponseEntity<List<EncounterResponse>> getDoctorEncounters(@PathVariable Long doctorId) {
+        return ResponseEntity.ok(consultationService.getDoctorEncounters(doctorId));
+    }
 }

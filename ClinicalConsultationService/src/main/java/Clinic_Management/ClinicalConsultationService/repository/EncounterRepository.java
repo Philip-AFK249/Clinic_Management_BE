@@ -15,4 +15,12 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
 
     @Query("SELECT e FROM Encounter e JOIN FETCH e.diagnoses WHERE e.patientId = :patientId ORDER BY e.encounterDate DESC")
     List<Encounter> findPatientHistory(@Param("patientId") Long patientId);
+
+    @Query("""
+        SELECT e FROM Encounter e 
+        LEFT JOIN FETCH e.diagnoses 
+        WHERE e.doctorId = :doctorId 
+        ORDER BY e.encounterDate DESC, e.createdAt DESC
+    """)
+    List<Encounter> findDoctorEncounters(@Param("doctorId") Long doctorId);
 }
