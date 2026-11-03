@@ -192,4 +192,18 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
             @Param("statuses") List<QueueStatus> statuses
     );
 
+    @Query("""
+        SELECT q FROM QueueTicket q
+        JOIN FETCH q.patient
+        WHERE q.doctorId = :doctorId
+          AND q.appointmentDate >= :fromDate
+          AND q.status IN :statuses
+        ORDER BY q.appointmentDate ASC, q.slotStartTime ASC
+    """)
+    List<QueueTicket> findCurrentDoctorConsultation(
+            @Param("doctorId") Long doctorId,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("statuses") List<QueueStatus> statuses
+    );
+
 }

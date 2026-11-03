@@ -82,9 +82,21 @@ public class QueueService {
     public QueueTicketDetailResponse getTicketDetails(String ticketNumber) {
         List<QueueTicket> tickets = queueTicketRepository.findByTicketNumberWithPatientOrderByDateDesc(ticketNumber);
         if (tickets.isEmpty()) {
-            throw new IllegalArgumentException("Không tìm thấy thông tin phiếu khám: " + ticketNumber);
+            return null;
         }
-        QueueTicket ticket = tickets.get(0); // Lấy phiếu mới nhất, tránh lỗi 500 do trùng mã khác ngày
+        QueueTicket ticket = tickets.get(0);
+        return mapToDetailResponse(ticket, ticket.getPatient());
+    }
+
+    @Transactional(readOnly = true)
+    public QueueTicketDetailResponse getCurrentDoctorConsultation(Long doctorId) {
+        List<QueueTicket> active = queueTicketRepository.findCurrentDoctorConsultation(
+                doctorId, LocalDate.now(), List.of(QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
+        );
+        if (active.isEmpty()) {
+            return null;
+        }
+        QueueTicket ticket = active.get(0);
         return mapToDetailResponse(ticket, ticket.getPatient());
     }
 

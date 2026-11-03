@@ -40,11 +40,6 @@ public class QueueController {
         return ResponseEntity.ok(queueService.callNextPatient(doctorId, targetDate));
     }
 
-    @GetMapping("/tickets/{ticketNumber}")
-    @Operation(summary = "Lấy thông tin chi tiết phiếu khám kèm hồ sơ bệnh nhân (Dành cho màn hình EHR Bác sĩ)")
-    public ResponseEntity<QueueTicketDetailResponse> getTicketDetails(@PathVariable String ticketNumber) {
-        return ResponseEntity.ok(queueService.getTicketDetails(ticketNumber));
-    }
 
     @PatchMapping("/tickets/{ticketNumber}/status")
     @Operation(summary = "Cập nhật trạng thái phiếu (IN_CONSULTATION, COMPLETED, SKIPPED, CANCELLED)")
@@ -119,5 +114,25 @@ public class QueueController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate) {
         LocalDate targetDate = (fromDate != null) ? fromDate : LocalDate.now();
         return ResponseEntity.ok(queueService.getReceptionUpcomingQueue(departmentId, targetDate));
+    }
+
+    @GetMapping("/tickets/{ticketNumber}")
+    @Operation(summary = "Lấy thông tin chi tiết phiếu khám kèm hồ sơ bệnh nhân")
+    public ResponseEntity<QueueTicketDetailResponse> getTicketDetails(@PathVariable String ticketNumber) {
+        QueueTicketDetailResponse details = queueService.getTicketDetails(ticketNumber);
+        if (details == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(details);
+    }
+
+    @GetMapping("/doctor/{doctorId}/current")
+    @Operation(summary = "Lấy ca khám đang diễn ra dở dang của Bác sĩ để khôi phục giao diện khi F5")
+    public ResponseEntity<QueueTicketDetailResponse> getCurrentConsultation(@PathVariable Long doctorId) {
+        QueueTicketDetailResponse response = queueService.getCurrentDoctorConsultation(doctorId);
+        if (response == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(response);
     }
 }
