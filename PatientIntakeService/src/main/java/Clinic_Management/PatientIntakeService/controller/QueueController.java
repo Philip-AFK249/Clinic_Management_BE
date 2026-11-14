@@ -143,5 +143,5 @@ public class QueueController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate) {
         LocalDate targetDate = (fromDate != null) ? fromDate : LocalDate.now().minusDays(7);
         return ResponseEntity.ok(queueService.getReceptionHistoryQueue(departmentId, targetDate));
-    }nủ
+    }
 }

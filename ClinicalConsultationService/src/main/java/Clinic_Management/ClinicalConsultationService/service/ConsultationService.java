@@ -64,8 +64,8 @@ public class ConsultationService {
 
         intakeQueueClient.updateTicketStatus(savedEncounter.getTicketNumber(), "COMPLETED");
 
-        log.info("Bác sĩ {} đã ký duyệt bệnh án #{}. Đơn thuốc ID: {}",
-                encounter.getDoctorName(), encounter.getTicketNumber(), prescriptionId);
+        log.info("Bác sĩ {} (ID={}) đã ký duyệt bệnh án #{}. Đơn thuốc ID: {}",
+                encounter.getDoctorName(), encounter.getDoctorId(), encounter.getTicketNumber(), prescriptionId);
 
         return mapToEncounterResponse(savedEncounter, prescriptionId);
     }
@@ -88,7 +88,6 @@ public class ConsultationService {
             Drug drug = drugRepository.findById(itemReq.getDrugId())
                     .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thuốc có ID: " + itemReq.getDrugId()));
 
-            // 1. CHỐT CHẶN CẢNH BÁO DỊ ỨNG PENICILLIN
             if (drug.getIsPenicillinClass() && allergies != null) {
                 boolean hasPenicillinAllergy = allergies.stream()
                         .anyMatch(a -> a.toLowerCase().contains("penicillin"));
@@ -97,7 +96,6 @@ public class ConsultationService {
                 }
             }
 
-            // 2. CHỐT CHẶN KIỂM TRA TỒN KHO THUỐC NGAY KHI BÁC SĨ KÊ ĐƠN
             if (drug.getStockQuantity() <= 0) {
                 throw new IllegalStateException(String.format(
                         "Thuốc %s (Mã %s) hiện đã HẾT HÀNG trong kho dược (Tồn: 0). Vui lòng chọn loại thuốc thay thế.",
@@ -144,9 +142,12 @@ public class ConsultationService {
         Prescription saved = prescriptionRepository.save(prescription);
         return saved.getId();
     }
+
     @Transactional
     public EncounterResponse startEncounter(StartEncounterRequest request) {
-        Encounter encounter = encounterRepository.findByTicketNumber(request.getTicketNumber())
+        LocalDate today = LocalDate.now();
+        Encounter encounter = encounterRepository
+                .findTopByTicketNumberAndEncounterDateOrderByCreatedAtDesc(request.getTicketNumber(), today)
                 .orElseGet(() -> Encounter.builder()
                         .ticketNumber(request.getTicketNumber())
                         .patientId(request.getPatientId())
@@ -154,13 +155,19 @@ public class ConsultationService {
                         .doctorId(request.getDoctorId())
                         .doctorName(request.getDoctorName())
                         .departmentId(request.getDepartmentId())
-                        .encounterDate(LocalDate.now())
+                        .encounterDate(today)
                         .status(EncounterStatus.IN_PROGRESS)
                         .bloodPressure(request.getBloodPressure())
                         .heartRate(request.getHeartRate())
                         .temperature(request.getTemperature())
                         .spo2(request.getSpo2())
                         .build());
+
+        encounter.setDoctorId(request.getDoctorId());
+        encounter.setDoctorName(request.getDoctorName());
+        encounter.setPatientId(request.getPatientId());
+        encounter.setPatientName(request.getPatientName());
+        encounter.setDepartmentId(request.getDepartmentId());
 
         if (encounter.getBloodPressure() == null && request.getBloodPressure() != null) {
             encounter.setBloodPressure(request.getBloodPressure());
@@ -205,6 +212,7 @@ public class ConsultationService {
                 .createdAt(e.getCreatedAt())
                 .build();
     }
+
     @Transactional(readOnly = true)
     public List<EncounterResponse> getPatientHistory(Long patientId) {
         return encounterRepository.findPatientHistory(patientId).stream()
