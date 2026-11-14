@@ -27,6 +27,11 @@ public class DoctorScheduleService {
 
     @Transactional
     public DoctorShift registerShift(CreateShiftRequest request) {
+        if (shiftRepository.existsByDoctorIdAndShiftDateAndSession(
+                request.getDoctorId(), request.getShiftDate(), request.getSession())) {
+            throw new IllegalStateException("Bác sĩ này đã có lịch trực trong buổi này.");
+        }
+
         Doctor doctor = doctorRepository.findById(request.getDoctorId())
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Bác sĩ có ID: " + request.getDoctorId()));
 
@@ -58,7 +63,6 @@ public class DoctorScheduleService {
 
         return shiftRepository.save(shift);
     }
-
     @Transactional(readOnly = true)
     public List<TimeSlotResponse> getAvailableSlots(Long departmentId, LocalDate date) {
         List<DoctorShift> outpatientShifts = shiftRepository

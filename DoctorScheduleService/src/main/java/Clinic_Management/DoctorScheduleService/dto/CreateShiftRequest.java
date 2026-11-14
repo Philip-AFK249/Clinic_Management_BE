@@ -1,7 +1,7 @@
 package Clinic_Management.DoctorScheduleService.dto;
+
 import Clinic_Management.DoctorScheduleService.entity.DutyType;
 import Clinic_Management.DoctorScheduleService.entity.ShiftSession;
-import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -16,7 +16,6 @@ public class CreateShiftRequest {
     private Long departmentId;
 
     @NotNull(message = "Ngày trực không được để trống")
-    @FutureOrPresent(message = "Ngày trực phải là hiện tại hoặc tương lai")
     private LocalDate shiftDate;
 
     @NotNull(message = "Buổi trực không được để trống")
