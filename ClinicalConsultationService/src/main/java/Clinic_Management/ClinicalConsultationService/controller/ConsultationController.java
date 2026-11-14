@@ -34,10 +34,18 @@ public class ConsultationController {
             @Valid @RequestBody CompleteEncounterRequest request) {
         return ResponseEntity.ok(consultationService.completeEncounter(id, request));
     }
+
     @GetMapping("/patient/{patientId}")
-    @Operation(summary = "Lấy toàn bộ lịch sử bệnh án và chẩn đoán ICD-10 của bệnh nhân")
+    @Operation(summary = "Lấy toàn bộ lịch sử bệnh án, chẩn đoán ICD-10, đơn thuốc và chi phí của bệnh nhân")
     public ResponseEntity<List<EncounterResponse>> getPatientHistory(@PathVariable Long patientId) {
         return ResponseEntity.ok(consultationService.getPatientHistory(patientId));
+    }
+
+    @GetMapping("/by-tickets")
+    @Operation(summary = "Tra cứu lịch sử bệnh án và chi phí theo danh sách mã phiếu khám")
+    public ResponseEntity<List<EncounterResponse>> getEncountersByTickets(
+            @RequestParam List<String> ticketNumbers) {
+        return ResponseEntity.ok(consultationService.getEncountersByTicketNumbers(ticketNumbers));
     }
 
     @GetMapping("/doctor/{doctorId}")

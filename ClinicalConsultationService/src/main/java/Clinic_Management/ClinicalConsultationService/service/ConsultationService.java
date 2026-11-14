@@ -15,6 +15,9 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -57,20 +60,21 @@ public class ConsultationService {
 
         Encounter savedEncounter = encounterRepository.save(encounter);
 
-        Long prescriptionId = null;
+        Prescription savedPrescription = null;
         if (request.getPrescriptionItems() != null && !request.getPrescriptionItems().isEmpty()) {
-            prescriptionId = createPrescription(savedEncounter, request.getPrescriptionItems(), request.getPatientAllergies());
+            savedPrescription = createPrescription(savedEncounter, request.getPrescriptionItems(), request.getPatientAllergies());
         }
 
         intakeQueueClient.updateTicketStatus(savedEncounter.getTicketNumber(), "COMPLETED");
 
         log.info("Bác sĩ {} (ID={}) đã ký duyệt bệnh án #{}. Đơn thuốc ID: {}",
-                encounter.getDoctorName(), encounter.getDoctorId(), encounter.getTicketNumber(), prescriptionId);
+                encounter.getDoctorName(), encounter.getDoctorId(), encounter.getTicketNumber(),
+                savedPrescription != null ? savedPrescription.getId() : null);
 
-        return mapToEncounterResponse(savedEncounter, prescriptionId);
+        return mapToEncounterResponse(savedEncounter, savedPrescription);
     }
 
-    private Long createPrescription(Encounter encounter, List<PrescriptionItemRequest> itemRequests, List<String> allergies) {
+    private Prescription createPrescription(Encounter encounter, List<PrescriptionItemRequest> itemRequests, List<String> allergies) {
         Prescription prescription = Prescription.builder()
                 .encounterId(encounter.getId())
                 .ticketNumber(encounter.getTicketNumber())
@@ -139,8 +143,7 @@ public class ConsultationService {
         prescription.setInsurancePaidAmount(insurancePaid);
         prescription.setPatientCopayAmount(patientCopay);
 
-        Prescription saved = prescriptionRepository.save(prescription);
-        return saved.getId();
+        return prescriptionRepository.save(prescription);
     }
 
     @Transactional
@@ -182,7 +185,7 @@ public class ConsultationService {
         return mapToEncounterResponse(saved, null);
     }
 
-    private EncounterResponse mapToEncounterResponse(Encounter e, Long prescriptionId) {
+    private EncounterResponse mapToEncounterResponse(Encounter e, Prescription prescription) {
         List<EncounterResponse.DiagnosisResponse> diagList = new ArrayList<>();
         if (e.getDiagnoses() != null) {
             diagList = e.getDiagnoses().stream()
@@ -194,6 +197,26 @@ public class ConsultationService {
                     .toList();
         }
 
+        List<PrescriptionDetailResponse.PrescriptionItemResponse> rxItems = List.of();
+        if (prescription != null && prescription.getItems() != null) {
+            rxItems = prescription.getItems().stream()
+                    .map(i -> PrescriptionDetailResponse.PrescriptionItemResponse.builder()
+                            .itemId(i.getId())
+                            .drugId(i.getDrug() != null ? i.getDrug().getId() : null)
+                            .drugCode(i.getDrug() != null ? i.getDrug().getCode() : "")
+                            .drugName(i.getDrugName())
+                            .concentration(i.getDrug() != null ? i.getDrug().getConcentration() : "")
+                            .dosageForm(i.getDosageForm())
+                            .routeFrequency(i.getRouteFrequency())
+                            .duration(i.getDuration())
+                            .quantity(i.getQuantity())
+                            .currentStock(i.getDrug() != null ? i.getDrug().getStockQuantity() : 0)
+                            .unitPrice(i.getUnitPrice())
+                            .amount(i.getAmount())
+                            .build())
+                    .toList();
+        }
+
         return EncounterResponse.builder()
                 .encounterId(e.getId())
                 .ticketNumber(e.getTicketNumber())
@@ -201,29 +224,71 @@ public class ConsultationService {
                 .patientName(e.getPatientName())
                 .doctorId(e.getDoctorId())
                 .doctorName(e.getDoctorName())
+                .departmentId(e.getDepartmentId())
                 .encounterDate(e.getEncounterDate())
                 .status(e.getStatus())
                 .subjective(e.getSubjective())
                 .objective(e.getObjective())
                 .assessment(e.getAssessment())
                 .plan(e.getPlan())
+                .bloodPressure(e.getBloodPressure())
+                .heartRate(e.getHeartRate())
+                .temperature(e.getTemperature())
+                .spo2(e.getSpo2())
                 .diagnoses(diagList)
-                .prescriptionId(prescriptionId)
+                .prescriptionId(prescription != null ? prescription.getId() : null)
+                .prescriptionStatus(prescription != null ? prescription.getStatus() : null)
+                .totalAmount(prescription != null ? prescription.getTotalAmount() : BigDecimal.ZERO)
+                .insurancePaidAmount(prescription != null ? prescription.getInsurancePaidAmount() : BigDecimal.ZERO)
+                .patientCopayAmount(prescription != null ? prescription.getPatientCopayAmount() : BigDecimal.ZERO)
+                .dispensedAt(prescription != null ? prescription.getDispensedAt() : null)
+                .prescriptionItems(rxItems)
                 .createdAt(e.getCreatedAt())
                 .build();
     }
 
-    @Transactional(readOnly = true)
-    public List<EncounterResponse> getPatientHistory(Long patientId) {
-        return encounterRepository.findPatientHistory(patientId).stream()
-                .map(encounter -> mapToEncounterResponse(encounter, null))
+    private List<EncounterResponse> mapEncountersWithPrescriptions(List<Encounter> encounters) {
+        if (encounters.isEmpty()) {
+            return List.of();
+        }
+        List<Long> encounterIds = encounters.stream().map(Encounter::getId).toList();
+        Map<Long, Prescription> rxByEncounterId = prescriptionRepository
+                .findByEncounterIdInWithItems(encounterIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        Prescription::getEncounterId,
+                        Function.identity(),
+                        (existing, replacement) -> replacement
+                ));
+
+        return encounters.stream()
+                .map(encounter -> mapToEncounterResponse(encounter, rxByEncounterId.get(encounter.getId())))
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public List<EncounterResponse> getDoctorEncounters(Long doctorId) {
-        return encounterRepository.findDoctorEncounters(doctorId).stream()
-                .map(encounter -> mapToEncounterResponse(encounter, null))
+    public List<EncounterResponse> getPatientHistory(Long patientId) {
+        return mapEncountersWithPrescriptions(encounterRepository.findPatientHistory(patientId));
+    }
+
+    @Transactional(readOnly = true)
+    public List<EncounterResponse> getEncountersByTicketNumbers(List<String> ticketNumbers) {
+        if (ticketNumbers == null || ticketNumbers.isEmpty()) {
+            return List.of();
+        }
+        List<String> cleaned = ticketNumbers.stream()
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .distinct()
                 .toList();
+        if (cleaned.isEmpty()) {
+            return List.of();
+        }
+        return mapEncountersWithPrescriptions(encounterRepository.findByTicketNumberIn(cleaned));
+    }
+
+    @Transactional(readOnly = true)
+    public List<EncounterResponse> getDoctorEncounters(Long doctorId) {
+        return mapEncountersWithPrescriptions(encounterRepository.findDoctorEncounters(doctorId));
     }
 }

@@ -17,4 +17,12 @@ public interface PrescriptionRepository extends JpaRepository<Prescription, Long
 
     @Query("SELECT p FROM Prescription p JOIN FETCH p.items WHERE p.id = :id")
     Optional<Prescription> findByIdWithItems(@Param("id") Long id);
+
+    @Query("""
+        SELECT DISTINCT p FROM Prescription p
+        LEFT JOIN FETCH p.items i
+        LEFT JOIN FETCH i.drug
+        WHERE p.encounterId IN :encounterIds
+    """)
+    List<Prescription> findByEncounterIdInWithItems(@Param("encounterIds") List<Long> encounterIds);
 }

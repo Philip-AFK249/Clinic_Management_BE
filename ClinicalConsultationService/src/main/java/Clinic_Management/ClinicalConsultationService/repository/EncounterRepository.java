@@ -29,6 +29,14 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
     @Query("""
         SELECT DISTINCT e FROM Encounter e
         LEFT JOIN FETCH e.diagnoses
+        WHERE e.ticketNumber IN :ticketNumbers
+        ORDER BY e.encounterDate DESC, e.createdAt DESC
+    """)
+    List<Encounter> findByTicketNumberIn(@Param("ticketNumbers") List<String> ticketNumbers);
+
+    @Query("""
+        SELECT DISTINCT e FROM Encounter e
+        LEFT JOIN FETCH e.diagnoses
         WHERE e.doctorId = :doctorId
         ORDER BY e.encounterDate DESC, e.createdAt DESC
     """)
