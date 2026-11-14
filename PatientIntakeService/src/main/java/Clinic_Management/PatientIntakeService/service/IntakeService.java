@@ -118,6 +118,22 @@ public class IntakeService {
             ));
         }
 
+        java.time.ZoneId clinicZone = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
+        java.time.LocalDate todayInClinic = java.time.LocalDate.now(clinicZone);
+        java.time.LocalTime nowInClinic = java.time.LocalTime.now(clinicZone);
+
+        if (request.getAppointmentDate().isBefore(todayInClinic)) {
+            throw new IllegalArgumentException(
+                    "Ngày khám đã chọn ở trong quá khứ. Vui lòng chọn từ hôm nay trở đi."
+            );
+        }
+        if (request.getAppointmentDate().isEqual(todayInClinic)
+                && !request.getSlotStartTime().plusHours(1).isAfter(nowInClinic)) {
+            throw new IllegalArgumentException(
+                    "Khung giờ khám này trong hôm nay đã kết thúc. Vui lòng chọn khung giờ chiều còn trống hoặc chuyển sang ngày mai."
+            );
+        }
+
         // --- 2. TIẾP NHẬN VÀ PHÂN BỔ BÁC SĨ ---
         QueueTicket savedTicket = null;
         ScheduleAssignDoctorResponse doctorAssignment = null;
