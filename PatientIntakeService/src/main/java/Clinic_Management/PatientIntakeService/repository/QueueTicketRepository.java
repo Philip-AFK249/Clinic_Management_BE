@@ -52,7 +52,6 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
             @Param("status") QueueStatus status
     );
 
-    // Tìm vé kèm thông tin bệnh nhân - sắp xếp lấy ngày mới nhất tránh lỗi 500 IncorrectResultSize
     @Query("""
         SELECT q FROM QueueTicket q 
         JOIN FETCH q.patient 
@@ -64,7 +63,6 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
     Optional<QueueTicket> findTopByTicketNumberOrderByAppointmentDateDesc(String ticketNumber);
     Optional<QueueTicket> findByAppointmentDateAndTicketNumber(LocalDate appointmentDate, String ticketNumber);
 
-    // LẤY VÉ ĐANG HOẠT ĐỘNG: Tìm từ ngày hôm nay trở đi (>= CURRENT_DATE) thay vì chỉ đúng hôm nay (= CURRENT_DATE)
     @Query("""
         SELECT q FROM QueueTicket q
         JOIN FETCH q.patient
@@ -78,7 +76,6 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
             @Param("statuses") List<QueueStatus> statuses
     );
 
-    // LẤY VÉ THEO IDENTIFIER: Tìm từ hôm nay trở đi (>= CURRENT_DATE)
     @Query("""
         SELECT q FROM QueueTicket q
         JOIN FETCH q.patient
@@ -156,6 +153,7 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
             @Param("appointmentDate") LocalDate appointmentDate,
             @Param("statuses") List<QueueStatus> statuses
     );
+
     @Query("""
         SELECT q FROM QueueTicket q
         JOIN FETCH q.patient
@@ -195,6 +193,23 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
     @Query("""
         SELECT q FROM QueueTicket q
         JOIN FETCH q.patient
+        WHERE (:departmentId IS NULL OR q.departmentId = :departmentId)
+          AND q.appointmentDate >= :fromDate
+          AND q.status IN :statuses
+        ORDER BY
+          q.appointmentDate DESC,
+          q.updatedAt DESC,
+          q.slotStartTime DESC
+    """)
+    List<QueueTicket> findReceptionHistoryQueue(
+            @Param("departmentId") Long departmentId,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("statuses") List<QueueStatus> statuses
+    );
+
+    @Query("""
+        SELECT q FROM QueueTicket q
+        JOIN FETCH q.patient
         WHERE q.doctorId = :doctorId
           AND q.appointmentDate >= :fromDate
           AND q.status IN :statuses
@@ -205,5 +220,4 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
             @Param("fromDate") LocalDate fromDate,
             @Param("statuses") List<QueueStatus> statuses
     );
-
 }

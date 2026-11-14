@@ -99,6 +99,15 @@ public class QueueService {
         QueueTicket ticket = active.get(0);
         return mapToDetailResponse(ticket, ticket.getPatient());
     }
+    @Transactional(readOnly = true)
+    public List<QueueTicket> getReceptionHistoryQueue(Long departmentId, LocalDate fromDate) {
+        LocalDate effectiveFrom = (fromDate != null) ? fromDate : LocalDate.now().minusDays(7);
+        return queueTicketRepository.findReceptionHistoryQueue(
+                departmentId,
+                effectiveFrom,
+                List.of(QueueStatus.COMPLETED)
+        );
+    }
 
     @Transactional(readOnly = true)
     public List<QueueTicket> getReceptionQueue(Long departmentId, LocalDate date) {

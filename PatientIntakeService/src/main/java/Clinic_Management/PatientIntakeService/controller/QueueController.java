@@ -135,4 +135,13 @@ public class QueueController {
         }
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/reception/history")
+    @Operation(summary = "Lấy lịch sử các phiếu khám đã hoàn tất cho Trạm điều dưỡng và Quầy tiếp đón")
+    public ResponseEntity<List<QueueTicket>> getReceptionHistoryQueue(
+            @RequestParam(required = false) Long departmentId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate) {
+        LocalDate targetDate = (fromDate != null) ? fromDate : LocalDate.now().minusDays(7);
+        return ResponseEntity.ok(queueService.getReceptionHistoryQueue(departmentId, targetDate));
+    }nủ
 }
