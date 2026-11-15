@@ -80,6 +80,7 @@ public class ConsultationService {
                 .ticketNumber(encounter.getTicketNumber())
                 .patientId(encounter.getPatientId())
                 .patientName(encounter.getPatientName())
+                .insuranceCode(encounter.getInsuranceCode())
                 .doctorId(encounter.getDoctorId())
                 .doctorName(encounter.getDoctorName())
                 .status(PrescriptionStatus.PENDING_DISPENSE)
@@ -155,6 +156,7 @@ public class ConsultationService {
                         .ticketNumber(request.getTicketNumber())
                         .patientId(request.getPatientId())
                         .patientName(request.getPatientName())
+                        .insuranceCode(request.getInsuranceCode())
                         .doctorId(request.getDoctorId())
                         .doctorName(request.getDoctorName())
                         .departmentId(request.getDepartmentId())
@@ -170,6 +172,9 @@ public class ConsultationService {
         encounter.setDoctorName(request.getDoctorName());
         encounter.setPatientId(request.getPatientId());
         encounter.setPatientName(request.getPatientName());
+        if (request.getInsuranceCode() != null && !request.getInsuranceCode().isBlank()) {
+            encounter.setInsuranceCode(request.getInsuranceCode());
+        }
         encounter.setDepartmentId(request.getDepartmentId());
 
         if (encounter.getBloodPressure() == null && request.getBloodPressure() != null) {

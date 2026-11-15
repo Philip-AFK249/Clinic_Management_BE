@@ -15,6 +15,9 @@ public interface PrescriptionRepository extends JpaRepository<Prescription, Long
     @Query("SELECT p FROM Prescription p JOIN FETCH p.items WHERE p.status = :status ORDER BY p.createdAt ASC")
     List<Prescription> findQueueByStatus(@Param("status") PrescriptionStatus status);
 
+    @Query("SELECT p FROM Prescription p JOIN FETCH p.items WHERE p.status = :status ORDER BY p.dispensedAt DESC, p.createdAt DESC")
+    List<Prescription> findHistoryByStatus(@Param("status") PrescriptionStatus status);
+
     @Query("SELECT p FROM Prescription p JOIN FETCH p.items WHERE p.id = :id")
     Optional<Prescription> findByIdWithItems(@Param("id") Long id);
 

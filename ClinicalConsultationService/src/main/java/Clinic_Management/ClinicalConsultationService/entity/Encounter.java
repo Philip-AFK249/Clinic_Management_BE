@@ -35,6 +35,9 @@ public class Encounter {
     @Column(name = "patient_name", nullable = false)
     private String patientName;
 
+    @Column(name = "insurance_code", length = 30)
+    private String insuranceCode;
+
     @Column(name = "doctor_id", nullable = false)
     private Long doctorId;
 
@@ -47,8 +50,6 @@ public class Encounter {
     @Column(name = "encounter_date", nullable = false)
     private LocalDate encounterDate;
 
-
-    // take note SOAP: Subjective, Objective, Assessment, Plan
     @Column(columnDefinition = "TEXT")
     private String subjective;
 
@@ -61,8 +62,6 @@ public class Encounter {
     @Column(columnDefinition = "TEXT")
     private String plan;
 
-
-    //vital signs
     private String bloodPressure;
     private Integer heartRate;
     private String temperature;

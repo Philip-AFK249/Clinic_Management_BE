@@ -12,7 +12,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -99,11 +102,13 @@ public class QueueService {
         QueueTicket ticket = active.get(0);
         return mapToDetailResponse(ticket, ticket.getPatient());
     }
+
     @Transactional(readOnly = true)
     public List<QueueTicket> getReceptionHistoryQueue(Long departmentId, LocalDate fromDate) {
         LocalDate effectiveFrom = (fromDate != null) ? fromDate : LocalDate.now().minusDays(7);
+        Long normalizedDeptId = (departmentId != null && departmentId > 0) ? departmentId : null;
         return queueTicketRepository.findReceptionHistoryQueue(
-                departmentId,
+                normalizedDeptId,
                 effectiveFrom,
                 List.of(QueueStatus.COMPLETED)
         );
@@ -140,7 +145,7 @@ public class QueueService {
             scheduleClient.releaseSlot(ticket.getTicketNumber());
             log.info("Phiếu {} ngày {} đã quá hạn so với hôm nay, tự động chuyển sang CANCELLED",
                     ticket.getTicketNumber(), ticket.getAppointmentDate());
-            return null; // Không còn vé active
+            return null;
         }
 
         return mapToDetailResponse(ticket, ticket.getPatient());
@@ -177,16 +182,23 @@ public class QueueService {
 
     @Transactional(readOnly = true)
     public List<QueueTicketDetailResponse> getPatientBookingHistory(Long patientId, String identifier) {
-        List<QueueTicket> tickets;
+        Map<String, QueueTicket> merged = new LinkedHashMap<>();
+
         if (patientId != null && patientId > 0) {
-            tickets = queueTicketRepository.findBookingHistoryByPatientId(patientId);
-        } else if (identifier != null && !identifier.isBlank()) {
-            tickets = queueTicketRepository.findBookingHistoryByIdentifier(identifier.trim());
-        } else {
-            return List.of();
+            for (QueueTicket t : queueTicketRepository.findBookingHistoryByPatientId(patientId)) {
+                merged.put(t.getAppointmentDate() + "_" + t.getTicketNumber(), t);
+            }
+        }
+        if (identifier != null && !identifier.isBlank()) {
+            for (QueueTicket t : queueTicketRepository.findBookingHistoryByIdentifier(identifier.trim())) {
+                merged.put(t.getAppointmentDate() + "_" + t.getTicketNumber(), t);
+            }
         }
 
-        return tickets.stream()
+        return merged.values().stream()
+                .sorted(Comparator
+                        .comparing(QueueTicket::getAppointmentDate, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(QueueTicket::getSlotStartTime, Comparator.nullsLast(Comparator.reverseOrder())))
                 .map(t -> mapToDetailResponse(t, t.getPatient()))
                 .toList();
     }
@@ -221,8 +233,9 @@ public class QueueService {
 
     @Transactional(readOnly = true)
     public List<QueueTicket> getReceptionUpcomingQueue(Long departmentId, LocalDate fromDate) {
+        Long normalizedDeptId = (departmentId != null && departmentId > 0) ? departmentId : null;
         return queueTicketRepository.findReceptionUpcomingQueue(
-                departmentId,
+                normalizedDeptId,
                 fromDate,
                 List.of(QueueStatus.WAITING, QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
         );

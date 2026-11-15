@@ -40,7 +40,6 @@ public class QueueController {
         return ResponseEntity.ok(queueService.callNextPatient(doctorId, targetDate));
     }
 
-
     @PatchMapping("/tickets/{ticketNumber}/status")
     @Operation(summary = "Cập nhật trạng thái phiếu (IN_CONSULTATION, COMPLETED, SKIPPED, CANCELLED)")
     public ResponseEntity<QueueTicket> updateStatus(
@@ -94,10 +93,11 @@ public class QueueController {
     }
 
     @GetMapping("/patient/{patientId}/history")
-    @Operation(summary = "Lấy toàn bộ lịch sử các lần đặt phiếu khám của bệnh nhân theo ID")
+    @Operation(summary = "Lấy toàn bộ lịch sử các lần đặt phiếu khám của bệnh nhân theo ID và định danh bổ sung")
     public ResponseEntity<List<QueueTicketDetailResponse>> getBookingHistoryByPatientId(
-            @PathVariable Long patientId) {
-        return ResponseEntity.ok(queueService.getPatientBookingHistory(patientId, null));
+            @PathVariable Long patientId,
+            @RequestParam(required = false) String identifier) {
+        return ResponseEntity.ok(queueService.getPatientBookingHistory(patientId, identifier));
     }
 
     @GetMapping("/patient/history")

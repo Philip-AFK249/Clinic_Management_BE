@@ -24,14 +24,15 @@ public class PharmacyService {
     private final PrescriptionRepository prescriptionRepository;
     private final DrugRepository drugRepository;
 
-
     @Transactional(readOnly = true)
     public List<PrescriptionDetailResponse> getPrescriptionsByStatus(PrescriptionStatus status) {
-        return prescriptionRepository.findQueueByStatus(status).stream()
+        List<Prescription> prescriptions = (status == PrescriptionStatus.DISPENSED || status == PrescriptionStatus.CANCELLED)
+                ? prescriptionRepository.findHistoryByStatus(status)
+                : prescriptionRepository.findQueueByStatus(status);
+        return prescriptions.stream()
                 .map(this::mapToDetailResponse)
                 .toList();
     }
-
 
     @Transactional(readOnly = true)
     public PrescriptionDetailResponse getPrescriptionDetails(Long prescriptionId) {
@@ -72,7 +73,6 @@ public class PharmacyService {
 
         return mapToDetailResponse(saved);
     }
-
 
     @Transactional(readOnly = true)
     public List<Drug> getActiveDrugs() {
