@@ -1,6 +1,7 @@
 package Clinic_Management.ClinicalConsultationService.repository;
 
 import Clinic_Management.ClinicalConsultationService.entity.Encounter;
+import Clinic_Management.ClinicalConsultationService.entity.EncounterStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -41,4 +42,6 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
         ORDER BY e.encounterDate DESC, e.createdAt DESC
     """)
     List<Encounter> findDoctorEncounters(@Param("doctorId") Long doctorId);
+
+    List<Encounter> findByPatientIdAndStatus(Long patientId, EncounterStatus status);
 }

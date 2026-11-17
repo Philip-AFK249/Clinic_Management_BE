@@ -22,6 +22,10 @@ spring:
 services:
   doctor-schedule:
     base-url: http://localhost:8081/api/v1/schedules
+  patient-intake:
+    base-url: http://localhost:8082/api/v1/queue
+  clinical-consultation:
+      base-url: http://localhost:8083/api/v1/clinical/encounters
 
 springdoc:
   api-docs:

@@ -147,49 +147,6 @@ public class ConsultationService {
         return prescriptionRepository.save(prescription);
     }
 
-    @Transactional
-    public EncounterResponse startEncounter(StartEncounterRequest request) {
-        LocalDate today = LocalDate.now();
-        Encounter encounter = encounterRepository
-                .findTopByTicketNumberAndEncounterDateOrderByCreatedAtDesc(request.getTicketNumber(), today)
-                .orElseGet(() -> Encounter.builder()
-                        .ticketNumber(request.getTicketNumber())
-                        .patientId(request.getPatientId())
-                        .patientName(request.getPatientName())
-                        .insuranceCode(request.getInsuranceCode())
-                        .doctorId(request.getDoctorId())
-                        .doctorName(request.getDoctorName())
-                        .departmentId(request.getDepartmentId())
-                        .encounterDate(today)
-                        .status(EncounterStatus.IN_PROGRESS)
-                        .bloodPressure(request.getBloodPressure())
-                        .heartRate(request.getHeartRate())
-                        .temperature(request.getTemperature())
-                        .spo2(request.getSpo2())
-                        .build());
-
-        encounter.setDoctorId(request.getDoctorId());
-        encounter.setDoctorName(request.getDoctorName());
-        encounter.setPatientId(request.getPatientId());
-        encounter.setPatientName(request.getPatientName());
-        if (request.getInsuranceCode() != null && !request.getInsuranceCode().isBlank()) {
-            encounter.setInsuranceCode(request.getInsuranceCode());
-        }
-        encounter.setDepartmentId(request.getDepartmentId());
-
-        if (encounter.getBloodPressure() == null && request.getBloodPressure() != null) {
-            encounter.setBloodPressure(request.getBloodPressure());
-            encounter.setHeartRate(request.getHeartRate());
-            encounter.setTemperature(request.getTemperature());
-            encounter.setSpo2(request.getSpo2());
-        }
-
-        Encounter saved = encounterRepository.save(encounter);
-        intakeQueueClient.updateTicketStatus(request.getTicketNumber(), "IN_CONSULTATION");
-
-        return mapToEncounterResponse(saved, null);
-    }
-
     private EncounterResponse mapToEncounterResponse(Encounter e, Prescription prescription) {
         List<EncounterResponse.DiagnosisResponse> diagList = new ArrayList<>();
         if (e.getDiagnoses() != null) {
@@ -295,5 +252,83 @@ public class ConsultationService {
     @Transactional(readOnly = true)
     public List<EncounterResponse> getDoctorEncounters(Long doctorId) {
         return mapEncountersWithPrescriptions(encounterRepository.findDoctorEncounters(doctorId));
+    }
+
+    @Transactional
+    public EncounterResponse cancelEncounter(Long encounterId) {
+        Encounter encounter = encounterRepository.findById(encounterId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bệnh án có ID: " + encounterId));
+
+        if (encounter.getStatus() == EncounterStatus.COMPLETED) {
+            throw new IllegalStateException("Ca khám này đã hoàn tất, không thể hủy.");
+        }
+
+        if (encounter.getStatus() != EncounterStatus.CANCELLED) {
+            encounter.setStatus(EncounterStatus.CANCELLED);
+            encounter = encounterRepository.save(encounter);
+            intakeQueueClient.updateTicketStatus(encounter.getTicketNumber(), "CANCELLED");
+            log.info("Đã hủy ca khám ID={} (Phiếu: {})", encounter.getId(), encounter.getTicketNumber());
+        }
+
+        return mapToEncounterResponse(encounter, null);
+    }
+
+    @Transactional
+    public EncounterResponse startEncounter(StartEncounterRequest request) {
+        LocalDate today = LocalDate.now();
+
+        // Tự động hủy các ca IN_PROGRESS cũ/bị treo của bệnh nhân này trước khi mở ca mới
+        List<Encounter> staleEncounters = encounterRepository
+                .findByPatientIdAndStatus(request.getPatientId(), EncounterStatus.IN_PROGRESS);
+        for (Encounter stale : staleEncounters) {
+            boolean isDifferentTicket = !stale.getTicketNumber().equals(request.getTicketNumber());
+            boolean isPreviousDay = stale.getEncounterDate() != null && !stale.getEncounterDate().equals(today);
+            if (isDifferentTicket || isPreviousDay) {
+                stale.setStatus(EncounterStatus.CANCELLED);
+                encounterRepository.save(stale);
+                intakeQueueClient.updateTicketStatus(stale.getTicketNumber(), "CANCELLED");
+                log.info("Tự động hủy ca khám bị treo ID={} (Phiếu: {}, Ngày: {}) cho BN ID={}",
+                        stale.getId(), stale.getTicketNumber(), stale.getEncounterDate(), request.getPatientId());
+            }
+        }
+
+        Encounter encounter = encounterRepository
+                .findTopByTicketNumberAndEncounterDateOrderByCreatedAtDesc(request.getTicketNumber(), today)
+                .orElseGet(() -> Encounter.builder()
+                        .ticketNumber(request.getTicketNumber())
+                        .patientId(request.getPatientId())
+                        .patientName(request.getPatientName())
+                        .insuranceCode(request.getInsuranceCode())
+                        .doctorId(request.getDoctorId())
+                        .doctorName(request.getDoctorName())
+                        .departmentId(request.getDepartmentId())
+                        .encounterDate(today)
+                        .status(EncounterStatus.IN_PROGRESS)
+                        .bloodPressure(request.getBloodPressure())
+                        .heartRate(request.getHeartRate())
+                        .temperature(request.getTemperature())
+                        .spo2(request.getSpo2())
+                        .build());
+
+        encounter.setDoctorId(request.getDoctorId());
+        encounter.setDoctorName(request.getDoctorName());
+        encounter.setPatientId(request.getPatientId());
+        encounter.setPatientName(request.getPatientName());
+        if (request.getInsuranceCode() != null && !request.getInsuranceCode().isBlank()) {
+            encounter.setInsuranceCode(request.getInsuranceCode());
+        }
+        encounter.setDepartmentId(request.getDepartmentId());
+
+        if (encounter.getBloodPressure() == null && request.getBloodPressure() != null) {
+            encounter.setBloodPressure(request.getBloodPressure());
+            encounter.setHeartRate(request.getHeartRate());
+            encounter.setTemperature(request.getTemperature());
+            encounter.setSpo2(request.getSpo2());
+        }
+
+        Encounter saved = encounterRepository.save(encounter);
+        intakeQueueClient.updateTicketStatus(request.getTicketNumber(), "IN_CONSULTATION");
+
+        return mapToEncounterResponse(saved, null);
     }
 }

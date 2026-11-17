@@ -6,22 +6,52 @@ import Clinic_Management.AuthService.entity.UserRole;
 import Clinic_Management.AuthService.repository.UserRepository;
 import Clinic_Management.AuthService.security.JwtProvider;
 import io.jsonwebtoken.Claims;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
+    private final RestClient intakeRestClient;
+    private final RestClient clinicalRestClient;
+
+    public AuthService(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            JwtProvider jwtProvider,
+            @Value("${services.patient-intake.base-url:http://localhost:8082/api/v1/queue}") String intakeBaseUrl,
+            @Value("${services.clinical-consultation.base-url:http://localhost:8083/api/v1/clinical/encounters}") String clinicalBaseUrl) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtProvider = jwtProvider;
+
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout((int) Duration.ofSeconds(3).toMillis());
+        factory.setReadTimeout((int) Duration.ofSeconds(5).toMillis());
+
+        this.intakeRestClient = RestClient.builder()
+                .baseUrl(intakeBaseUrl)
+                .requestFactory(factory)
+                .build();
+        this.clinicalRestClient = RestClient.builder()
+                .baseUrl(clinicalBaseUrl)
+                .requestFactory(factory)
+                .build();
+    }
 
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
@@ -239,19 +269,6 @@ public class AuthService {
         log.info("Admin đã reset mật khẩu tài khoản {} về 'password123'", user.getEmail());
     }
 
-    @Transactional
-    public void deletePatientByAdmin(Long patientId) {
-        User patient = userRepository.findById(patientId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bệnh nhân có ID: " + patientId));
-
-        if (patient.getRole() != UserRole.PATIENT) {
-            throw new IllegalArgumentException("Chỉ được phép xóa tài khoản Bệnh nhân.");
-        }
-
-        userRepository.delete(patient);
-        log.info("Admin đã xóa tài khoản Bệnh nhân #{}: {}", patientId, patient.getFullName());
-    }
-
     @Transactional(readOnly = true)
     public List<AuthResponse> getStaffDirectory() {
         List<UserRole> staffRoles = List.of(
@@ -266,4 +283,67 @@ public class AuthService {
                 .map(user -> mapToAuthResponse(user, null))
                 .toList();
     }
+
+    @Transactional
+    public void deletePatientByAdmin(Long patientId) {
+        User patient = userRepository.findById(patientId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bệnh nhân có ID: " + patientId));
+
+        if (patient.getRole() != UserRole.PATIENT) {
+            throw new IllegalArgumentException("Chỉ được phép xóa tài khoản Bệnh nhân.");
+        }
+
+        if (hasClinicalOrQueueRecords(patient)) {
+            throw new IllegalStateException(
+                    "Bệnh nhân đã có hồ sơ khám bệnh, không thể xóa vĩnh viễn. Vui lòng sử dụng chức năng Khóa tài khoản."
+            );
+        }
+
+        userRepository.delete(patient);
+        log.info("Admin đã xóa tài khoản Bệnh nhân #{}: {}", patientId, patient.getFullName());
+    }
+
+    private boolean hasClinicalOrQueueRecords(User patient) {
+        try {
+            List<Object> encounters = clinicalRestClient.get()
+                    .uri("/patient/{patientId}", patient.getId())
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {});
+            if (encounters != null && !encounters.isEmpty()) {
+                return true;
+            }
+
+            String cccd = patient.getIdentityCardNumber();
+            if (hasQueueTickets(patient.getId(), cccd)) {
+                return true;
+            }
+
+            String bhyt = patient.getInsuranceCode();
+            if (bhyt != null && !bhyt.isBlank() && !bhyt.equals(cccd)) {
+                return hasQueueTickets(patient.getId(), bhyt);
+            }
+
+            return false;
+        } catch (Exception ex) {
+            log.error("Không thể kiểm tra lịch sử khám của bệnh nhân #{}: {}", patient.getId(), ex.getMessage());
+            throw new IllegalStateException(
+                    "Không thể xác minh lịch sử khám bệnh từ PatientIntakeService / ClinicalConsultationService. Vui lòng thử lại sau."
+            );
+        }
+    }
+
+    private boolean hasQueueTickets(Long patientId, String identifier) {
+        List<Object> tickets = intakeRestClient.get()
+                .uri(uriBuilder -> {
+                    var builder = uriBuilder.path("/patient/{patientId}/history");
+                    if (identifier != null && !identifier.isBlank()) {
+                        builder.queryParam("identifier", identifier.trim());
+                    }
+                    return builder.build(patientId);
+                })
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {});
+        return tickets != null && !tickets.isEmpty();
+    }
+
 }

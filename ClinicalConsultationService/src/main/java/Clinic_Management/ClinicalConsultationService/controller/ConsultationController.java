@@ -53,4 +53,10 @@ public class ConsultationController {
     public ResponseEntity<List<EncounterResponse>> getDoctorEncounters(@PathVariable Long doctorId) {
         return ResponseEntity.ok(consultationService.getDoctorEncounters(doctorId));
     }
+
+    @PatchMapping("/{id}/cancel")
+    @Operation(summary = "Hủy ca khám đang diễn ra dở dang (chuyển trạng thái sang CANCELLED)")
+    public ResponseEntity<EncounterResponse> cancelEncounter(@PathVariable Long id) {
+        return ResponseEntity.ok(consultationService.cancelEncounter(id));
+    }
 }

@@ -79,8 +79,7 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
     @Query("""
         SELECT q FROM QueueTicket q
         JOIN FETCH q.patient
-        WHERE (q.patient.phone = :identifier 
-            OR q.patient.identityCardNumber = :identifier 
+        WHERE (q.patient.identityCardNumber = :identifier 
             OR q.patient.insuranceCode = :identifier)
           AND q.appointmentDate >= CURRENT_DATE
           AND q.status IN :statuses
@@ -165,8 +164,7 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
     @Query("""
         SELECT q FROM QueueTicket q
         JOIN FETCH q.patient
-        WHERE (q.patient.phone = :identifier 
-            OR q.patient.identityCardNumber = :identifier 
+        WHERE (q.patient.identityCardNumber = :identifier 
             OR q.patient.insuranceCode = :identifier)
         ORDER BY q.appointmentDate DESC, q.slotStartTime DESC
     """)
