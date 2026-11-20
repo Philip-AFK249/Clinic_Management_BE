@@ -191,18 +191,60 @@ public class AuthService {
 
     private void applyPatientUpdates(User user, UpdatePatientRequest req) {
         user.setFullName(req.getFullName().trim());
-        if (req.getPhone() != null) user.setPhone(req.getPhone().trim());
-        if (req.getIdentityCardNumber() != null) user.setIdentityCardNumber(req.getIdentityCardNumber().trim());
+
+        if (req.getPhone() != null) {
+            String cleanedPhone = req.getPhone().trim();
+            user.setPhone(cleanedPhone.isEmpty() ? null : cleanedPhone);
+        }
+
+        if (req.getIdentityCardNumber() != null) {
+            String cleanedCccd = req.getIdentityCardNumber().trim();
+            if (!cleanedCccd.isEmpty() && !cleanedCccd.matches("^\\d{12}$")) {
+                throw new IllegalArgumentException("Số CCCD / mã định danh phải gồm đúng 12 chữ số.");
+            }
+            user.setIdentityCardNumber(cleanedCccd.isEmpty() ? null : cleanedCccd);
+        }
+
         if (req.getInsuranceCode() != null) {
-            user.setInsuranceCode(cleanInsuranceCode(req.getInsuranceCode()));
-        }        if (req.getInitialHospitalCode() != null) user.setInitialHospitalCode(req.getInitialHospitalCode().trim());
-        if (req.getDateOfBirth() != null) user.setDateOfBirth(req.getDateOfBirth());
-        if (req.getGender() != null) user.setGender(req.getGender());
-        if (req.getAddress() != null) user.setAddress(req.getAddress().trim());
-        if (req.getIsOcrVerified() != null) user.setIsOcrVerified(req.getIsOcrVerified());
-        if (req.getValidFrom() != null) user.setValidFrom(req.getValidFrom());
-        if (req.getValidUntil() != null) user.setValidUntil(req.getValidUntil());
+            String cleanedBhyt = cleanInsuranceCode(req.getInsuranceCode());
+            if (cleanedBhyt != null && !cleanedBhyt.matches("^[A-Z0-9]{15}$")) {
+                throw new IllegalArgumentException("Mã số thẻ BHYT phải gồm đúng 15 ký tự chữ in hoa và số.");
+            }
+            user.setInsuranceCode(cleanedBhyt);
+        }
+
+        if (req.getInitialHospitalCode() != null) {
+            String cleanedHospital = req.getInitialHospitalCode().trim();
+            user.setInitialHospitalCode(cleanedHospital.isEmpty() ? null : cleanedHospital);
+        }
+
+        if (req.getDateOfBirth() != null) {
+            user.setDateOfBirth(req.getDateOfBirth());
+        }
+        if (req.getGender() != null) {
+            String cleanedGender = req.getGender().trim();
+            user.setGender(cleanedGender.isEmpty() ? null : cleanedGender);
+        }
+        if (req.getAddress() != null) {
+            String cleanedAddress = req.getAddress().trim();
+            user.setAddress(cleanedAddress.isEmpty() ? null : cleanedAddress);
+        }
+        if (req.getValidFrom() != null) {
+            user.setValidFrom(req.getValidFrom());
+        }
+        if (req.getValidUntil() != null) {
+            if (req.getValidFrom() != null && req.getValidUntil().isBefore(req.getValidFrom())) {
+                throw new IllegalArgumentException("Ngày hết hạn thẻ BHYT không được nhỏ hơn ngày bắt đầu có giá trị.");
+            }
+            user.setValidUntil(req.getValidUntil());
+        }
+        if (user.getInsuranceCode() == null || user.getInsuranceCode().isBlank()) {
+            user.setIsOcrVerified(false);
+        } else if (req.getIsOcrVerified() != null) {
+            user.setIsOcrVerified(req.getIsOcrVerified());
+        }
     }
+
     private String cleanInsuranceCode(String code) {
         if (code == null) return null;
         String cleaned = code.replaceAll("\\s+", "").toUpperCase().trim();

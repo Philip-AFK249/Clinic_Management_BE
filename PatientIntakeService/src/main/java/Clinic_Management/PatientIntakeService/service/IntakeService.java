@@ -58,8 +58,9 @@ public class IntakeService {
 
     private Patient updatePatientDetails(Patient patient, AdministrativeIntakeRequest req) {
         patient.setFullName(req.getFullName().trim());
-        if (req.getInsuranceCode() != null && !req.getInsuranceCode().isBlank()) {
-            patient.setInsuranceCode(cleanInsuranceCode(req.getInsuranceCode()));
+        if (req.getInsuranceCode() != null) {
+            String cleanedBhyt = cleanInsuranceCode(req.getInsuranceCode());
+            patient.setInsuranceCode(cleanedBhyt);
         }
         if (req.getPhone() != null && !req.getPhone().isBlank()) patient.setPhone(req.getPhone().trim());
         if (req.getAddress() != null && !req.getAddress().isBlank()) patient.setAddress(req.getAddress().trim());
@@ -71,7 +72,12 @@ public class IntakeService {
         if (req.getIdentityCardNumber() != null && !req.getIdentityCardNumber().isBlank()) {
             patient.setIdentityCardNumber(req.getIdentityCardNumber().trim());
         }
-        if (Boolean.TRUE.equals(req.getIsOcrVerified())) patient.setIsOcrVerified(true);
+
+        if (patient.getInsuranceCode() == null || patient.getInsuranceCode().isBlank()) {
+            patient.setIsOcrVerified(false);
+        } else if (Boolean.TRUE.equals(req.getIsOcrVerified())) {
+            patient.setIsOcrVerified(true);
+        }
         return patientRepository.save(patient);
     }
 
@@ -96,10 +102,26 @@ public class IntakeService {
         if (request.getInsuranceCode() != null) {
             request.setInsuranceCode(cleanInsuranceCode(request.getInsuranceCode()));
         }
+        if (request.getInsuranceCode() != null) {
+            String cleanedBhyt = cleanInsuranceCode(request.getInsuranceCode());
+            if (cleanedBhyt != null && !cleanedBhyt.matches("^[A-Z0-9]{15}$")) {
+                throw new IllegalArgumentException("Mã số thẻ BHYT phải gồm đúng 15 ký tự chữ in hoa và số.");
+            }
+            request.setInsuranceCode(cleanedBhyt);
+        }
+        if (request.getIdentityCardNumber() != null && !request.getIdentityCardNumber().isBlank()) {
+            String cleanedCccd = request.getIdentityCardNumber().trim();
+            if (!cleanedCccd.matches("^\\d{12}$")) {
+                throw new IllegalArgumentException("Số CCCD phải gồm đúng 12 chữ số.");
+            }
+            request.setIdentityCardNumber(cleanedCccd);
+        }
+        if (request.getInsuranceCode() == null || request.getInsuranceCode().isBlank()) {
+            request.setIsOcrVerified(false);
+        }
 
         Patient patient = resolvePatient(request);
 
-        // --- 1. KIỂM TRA CHẶN ĐẶT TRÙNG LỊCH TRONG CÙNG NGÀY ---
         List<QueueStatus> activeStatuses = List.of(
                 QueueStatus.WAITING,
                 QueueStatus.CALLED,
