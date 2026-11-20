@@ -144,4 +144,23 @@ public class QueueController {
         LocalDate targetDate = (fromDate != null) ? fromDate : LocalDate.now().minusDays(7);
         return ResponseEntity.ok(queueService.getReceptionHistoryQueue(departmentId, targetDate));
     }
+
+    public record ConfirmedDiagnosisPayload(
+            String icd10Code,
+            String diseaseName,
+            String doctorName
+    ) {}
+
+    @PatchMapping("/tickets/{ticketNumber}/confirmed-diagnosis")
+    @Operation(summary = "Đồng bộ chẩn đoán ICD-10 thực tế của bác sĩ sau khi hoàn tất ca khám")
+    public ResponseEntity<QueueTicket> updateConfirmedDiagnosis(
+            @PathVariable String ticketNumber,
+            @RequestBody ConfirmedDiagnosisPayload payload) {
+        return ResponseEntity.ok(queueService.updateConfirmedDiagnosis(
+                ticketNumber,
+                payload != null ? payload.icd10Code() : null,
+                payload != null ? payload.diseaseName() : null,
+                payload != null ? payload.doctorName() : null
+        ));
+    }
 }

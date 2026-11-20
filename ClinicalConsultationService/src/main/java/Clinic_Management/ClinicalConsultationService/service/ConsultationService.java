@@ -66,6 +66,18 @@ public class ConsultationService {
         }
 
         intakeQueueClient.updateTicketStatus(savedEncounter.getTicketNumber(), "COMPLETED");
+        if (savedEncounter.getDiagnoses() != null && !savedEncounter.getDiagnoses().isEmpty()) {
+            EncounterDiagnosis primaryDiag = savedEncounter.getDiagnoses().stream()
+                    .filter(d -> Boolean.TRUE.equals(d.getIsPrimary()))
+                    .findFirst()
+                    .orElse(savedEncounter.getDiagnoses().get(0));
+            intakeQueueClient.syncConfirmedDiagnosis(
+                    savedEncounter.getTicketNumber(),
+                    primaryDiag.getIcd10Code(),
+                    primaryDiag.getDiseaseName(),
+                    savedEncounter.getDoctorName()
+            );
+        }
 
         log.info("Bác sĩ {} (ID={}) đã ký duyệt bệnh án #{}. Đơn thuốc ID: {}",
                 encounter.getDoctorName(), encounter.getDoctorId(), encounter.getTicketNumber(),

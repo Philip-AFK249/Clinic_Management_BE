@@ -30,4 +30,7 @@ public class IntakeResponse {
     private String receiptNumber;
     private java.math.BigDecimal receiptAmount;
     private Boolean isReceiptVerified;
+    private String triageFlagId;
+    private Boolean isOutOfDataset;
+    private String flagReason;
 }

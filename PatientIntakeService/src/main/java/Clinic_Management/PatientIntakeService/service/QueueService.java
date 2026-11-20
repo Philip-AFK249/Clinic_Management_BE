@@ -1,29 +1,93 @@
 package Clinic_Management.PatientIntakeService.service;
+
 import Clinic_Management.PatientIntakeService.clients.ScheduleServiceClient;
 import Clinic_Management.PatientIntakeService.dto.QueueTicketDetailResponse;
 import Clinic_Management.PatientIntakeService.entity.Patient;
 import Clinic_Management.PatientIntakeService.entity.QueueStatus;
 import Clinic_Management.PatientIntakeService.entity.QueueTicket;
 import Clinic_Management.PatientIntakeService.repository.QueueTicketRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class QueueService {
 
     private final QueueTicketRepository queueTicketRepository;
     private final ScheduleServiceClient scheduleClient;
+    private final RestClient aiGatewayClient;
+
+    public QueueService(
+            QueueTicketRepository queueTicketRepository,
+            ScheduleServiceClient scheduleClient,
+            @Value("${services.ai-gateway.base-url:http://localhost:8008}") String aiGatewayBaseUrl) {
+        this.queueTicketRepository = queueTicketRepository;
+        this.scheduleClient = scheduleClient;
+
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout((int) Duration.ofSeconds(2).toMillis());
+        factory.setReadTimeout((int) Duration.ofSeconds(3).toMillis());
+        this.aiGatewayClient = RestClient.builder()
+                .baseUrl(aiGatewayBaseUrl)
+                .requestFactory(factory)
+                .build();
+    }
+
+    @Transactional
+    public QueueTicket updateConfirmedDiagnosis(
+            String ticketNumber,
+            String icd10Code,
+            String diseaseName,
+            String doctorName) {
+        QueueTicket ticket = queueTicketRepository
+                .findByAppointmentDateAndTicketNumber(LocalDate.now(), ticketNumber)
+                .or(() -> queueTicketRepository.findTopByTicketNumberOrderByAppointmentDateDesc(ticketNumber))
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phiếu khám có mã: " + ticketNumber));
+
+        ticket.setConfirmedIcd10Code(icd10Code);
+        ticket.setConfirmedDiseaseName(diseaseName);
+        QueueTicket saved = queueTicketRepository.save(ticket);
+
+        if (Boolean.TRUE.equals(saved.getIsOutOfDataset())
+                || (saved.getTriageFlagId() != null && !saved.getTriageFlagId().isBlank())) {
+            try {
+                Map<String, Object> body = new HashMap<>();
+                body.put("confirmed_icd10_code", icd10Code != null ? icd10Code : "");
+                body.put("confirmed_disease_name", diseaseName != null ? diseaseName : "");
+                body.put("confirmed_by_doctor", doctorName != null ? doctorName : saved.getDoctorName());
+                if (saved.getTriageFlagId() != null && !saved.getTriageFlagId().isBlank()) {
+                    body.put("flag_id", saved.getTriageFlagId());
+                }
+
+                aiGatewayClient.patch()
+                        .uri("/api/v1/admin/flagged-symptoms/by-ticket/{ticketNumber}/confirm", ticketNumber)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body)
+                        .retrieve()
+                        .toBodilessEntity();
+                log.info("Đã đồng bộ chẩn đoán thực tế của phiếu {} sang AI Gateway", ticketNumber);
+            } catch (Exception ex) {
+                log.warn("Không thể đồng bộ chẩn đoán thực tế của phiếu {} sang AI Gateway: {}",
+                        ticketNumber, ex.getMessage());
+            }
+        }
+
+        return saved;
+    }
 
     @Transactional(readOnly = true)
     public List<QueueTicket> getDoctorActiveQueue(Long doctorId, LocalDate date) {
@@ -280,6 +344,11 @@ public class QueueService {
                 .receiptNumber(ticket.getReceiptNumber())
                 .receiptAmount(ticket.getReceiptAmount())
                 .isReceiptVerified(Boolean.TRUE.equals(ticket.getIsReceiptVerified()))
+                .triageFlagId(ticket.getTriageFlagId())
+                .isOutOfDataset(Boolean.TRUE.equals(ticket.getIsOutOfDataset()))
+                .flagReason(ticket.getFlagReason())
+                .confirmedIcd10Code(ticket.getConfirmedIcd10Code())
+                .confirmedDiseaseName(ticket.getConfirmedDiseaseName())
                 .build();
     }
 }

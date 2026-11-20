@@ -32,4 +32,25 @@ public class IntakeQueueClient {
         }
     }
 
+    public void syncConfirmedDiagnosis(
+            String ticketNumber,
+            String icd10Code,
+            String diseaseName,
+            String doctorName) {
+        try {
+            restClient.patch()
+                    .uri("/tickets/{ticketNumber}/confirmed-diagnosis", ticketNumber)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(java.util.Map.of(
+                            "icd10Code", icd10Code != null ? icd10Code : "",
+                            "diseaseName", diseaseName != null ? diseaseName : "",
+                            "doctorName", doctorName != null ? doctorName : ""
+                    ))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (Exception ex) {
+            System.err.println("Không thể đồng bộ chẩn đoán xác nhận sang PatientIntakeService: " + ex.getMessage());
+        }
+    }
+
 }

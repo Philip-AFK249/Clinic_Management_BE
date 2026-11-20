@@ -128,4 +128,21 @@ public class QueueTicket {
     @Builder.Default
     @Column(name = "is_receipt_verified")
     private Boolean isReceiptVerified = false;
+
+    @Column(name = "triage_flag_id", length = 64)
+    private String triageFlagId;
+
+    @Builder.Default
+    @Column(name = "is_out_of_dataset")
+    private Boolean isOutOfDataset = false;
+
+    @Column(name = "flag_reason", length = 60)
+    private String flagReason;
+
+    @Column(name = "confirmed_icd10_code", length = 20)
+    private String confirmedIcd10Code;
+
+    @Column(name = "confirmed_disease_name", length = 255)
+    private String confirmedDiseaseName;
+
 }

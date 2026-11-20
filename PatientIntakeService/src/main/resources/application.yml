@@ -25,7 +25,9 @@ services:
   patient-intake:
     base-url: http://localhost:8082/api/v1/queue
   clinical-consultation:
-      base-url: http://localhost:8083/api/v1/clinical/encounters
+    base-url: http://localhost:8083/api/v1/clinical/encounters
+  ai-gateway:
+    base-url: http://localhost:8008
 
 springdoc:
   api-docs:

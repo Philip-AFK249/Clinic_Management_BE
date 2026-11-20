@@ -59,4 +59,9 @@ public class QueueTicketDetailResponse {
     private String receiptNumber;
     private java.math.BigDecimal receiptAmount;
     private Boolean isReceiptVerified;
+    private String triageFlagId;
+    private Boolean isOutOfDataset;
+    private String flagReason;
+    private String confirmedIcd10Code;
+    private String confirmedDiseaseName;
 }

@@ -7,25 +7,48 @@ import Clinic_Management.PatientIntakeService.entity.QueueStatus;
 import Clinic_Management.PatientIntakeService.entity.QueueTicket;
 import Clinic_Management.PatientIntakeService.repository.PatientRepository;
 import Clinic_Management.PatientIntakeService.repository.QueueTicketRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class IntakeService {
 
     private final PatientRepository patientRepository;
     private final QueueTicketRepository queueTicketRepository;
     private final ScheduleServiceClient scheduleClient;
+    private final RestClient aiGatewayClient;
 
     private static final int MAX_TICKET_GEN_RETRIES = 3;
+
+    public IntakeService(
+            PatientRepository patientRepository,
+            QueueTicketRepository queueTicketRepository,
+            ScheduleServiceClient scheduleClient,
+            @Value("${services.ai-gateway.base-url:http://localhost:8008}") String aiGatewayBaseUrl) {
+        this.patientRepository = patientRepository;
+        this.queueTicketRepository = queueTicketRepository;
+        this.scheduleClient = scheduleClient;
+
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout((int) Duration.ofSeconds(2).toMillis());
+        factory.setReadTimeout((int) Duration.ofSeconds(3).toMillis());
+        this.aiGatewayClient = RestClient.builder()
+                .baseUrl(aiGatewayBaseUrl)
+                .requestFactory(factory)
+                .build();
+    }
 
     private Patient resolvePatient(AdministrativeIntakeRequest req) {
         if (req.getIdentityCardNumber() != null && !req.getIdentityCardNumber().isBlank()) {
@@ -91,17 +114,32 @@ public class IntakeService {
         };
         return String.format("#%s-%03d", prefix, currentCount);
     }
+
     private String cleanInsuranceCode(String code) {
         if (code == null) return null;
         String cleaned = code.replaceAll("\\s+", "").toUpperCase().trim();
         return cleaned.isEmpty() ? null : cleaned;
     }
 
+    private void linkFlagToTicket(String flagId, String ticketNumber, String patientName) {
+        if (flagId == null || flagId.isBlank()) return;
+        try {
+            aiGatewayClient.patch()
+                    .uri("/api/v1/admin/flagged-symptoms/{flagId}", flagId.trim())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of(
+                            "ticket_number", ticketNumber,
+                            "patient_name", patientName
+                    ))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (Exception ex) {
+            log.warn("Không thể gắn mã phiếu {} vào flag {}: {}", ticketNumber, flagId, ex.getMessage());
+        }
+    }
+
     @Transactional
     public IntakeResponse processIntake(AdministrativeIntakeRequest request) {
-        if (request.getInsuranceCode() != null) {
-            request.setInsuranceCode(cleanInsuranceCode(request.getInsuranceCode()));
-        }
         if (request.getInsuranceCode() != null) {
             String cleanedBhyt = cleanInsuranceCode(request.getInsuranceCode());
             if (cleanedBhyt != null && !cleanedBhyt.matches("^[A-Z0-9]{15}$")) {
@@ -156,7 +194,11 @@ public class IntakeService {
             );
         }
 
-        // --- 2. TIẾP NHẬN VÀ PHÂN BỔ BÁC SĨ ---
+        String cleanedFlagId = (request.getTriageFlagId() != null && !request.getTriageFlagId().isBlank())
+                ? request.getTriageFlagId().trim()
+                : null;
+        boolean isOutOfDataset = Boolean.TRUE.equals(request.getIsOutOfDataset()) || cleanedFlagId != null;
+
         QueueTicket savedTicket = null;
         ScheduleAssignDoctorResponse doctorAssignment = null;
         int attempts = 0;
@@ -200,6 +242,9 @@ public class IntakeService {
                         .receiptNumber(request.getReceiptNumber() != null ? request.getReceiptNumber().trim() : null)
                         .receiptAmount(request.getReceiptAmount())
                         .isReceiptVerified(Boolean.TRUE.equals(request.getIsReceiptVerified()))
+                        .triageFlagId(cleanedFlagId)
+                        .isOutOfDataset(isOutOfDataset)
+                        .flagReason(request.getFlagReason())
                         .build();
 
                 savedTicket = queueTicketRepository.saveAndFlush(ticket);
@@ -215,6 +260,10 @@ public class IntakeService {
                 log.error("Lỗi trong quá trình tiếp nhận bệnh nhân {}: {}", patient.getFullName(), ex.getMessage());
                 throw ex;
             }
+        }
+
+        if (cleanedFlagId != null) {
+            linkFlagToTicket(cleanedFlagId, savedTicket.getTicketNumber(), patient.getFullName());
         }
 
         log.info("Tiếp nhận thành công BN: {}, Mã phiếu: {}, Phòng khám: {}",
@@ -241,8 +290,12 @@ public class IntakeService {
                 .receiptNumber(savedTicket.getReceiptNumber())
                 .receiptAmount(savedTicket.getReceiptAmount())
                 .isReceiptVerified(Boolean.TRUE.equals(savedTicket.getIsReceiptVerified()))
+                .triageFlagId(savedTicket.getTriageFlagId())
+                .isOutOfDataset(Boolean.TRUE.equals(savedTicket.getIsOutOfDataset()))
+                .flagReason(savedTicket.getFlagReason())
                 .build();
     }
+
     @Transactional
     public QueueTicket updateTicketStatus(String ticketNumber, QueueStatus status) {
         QueueTicket ticket = queueTicketRepository
@@ -254,7 +307,6 @@ public class IntakeService {
         QueueTicket saved = queueTicketRepository.save(ticket);
         log.info("Cập nhật trạng thái phiếu {} sang {}", ticketNumber, status);
 
-        // KHI HỦY PHIẾU KHÁM, GIẢI PHÓNG SLOT KHÁM NGAY
         if (status == QueueStatus.CANCELLED) {
             scheduleClient.releaseSlot(ticketNumber);
         }
@@ -278,7 +330,7 @@ public class IntakeService {
         if (ticket.getAppointmentDate().isBefore(LocalDate.now())) {
             ticket.setStatus(QueueStatus.CANCELLED);
             queueTicketRepository.save(ticket);
-            scheduleClient.releaseSlot(ticket.getTicketNumber()); // Giải phóng slot quá hạn
+            scheduleClient.releaseSlot(ticket.getTicketNumber());
             throw new IllegalArgumentException("Phiếu khám trước đó đã hết hạn do qua ngày hẹn.");
         }
 
@@ -305,16 +357,13 @@ public class IntakeService {
         if (ticket.getAppointmentDate().isBefore(LocalDate.now())) {
             ticket.setStatus(QueueStatus.CANCELLED);
             queueTicketRepository.save(ticket);
-            scheduleClient.releaseSlot(ticket.getTicketNumber()); // Giải phóng slot quá hạn
+            scheduleClient.releaseSlot(ticket.getTicketNumber());
             throw new IllegalArgumentException("Phiếu khám trước đó đã hết hạn do qua ngày hẹn.");
         }
 
         return mapToDetailResponse(ticket, ticket.getPatient());
     }
 
-    // =========================================================================
-    // HELPER MAPPING FUNCTION
-    // =========================================================================
     private QueueTicketDetailResponse mapToDetailResponse(QueueTicket ticket, Patient patient) {
         return QueueTicketDetailResponse.builder()
                 .ticketNumber(ticket.getTicketNumber())
@@ -347,6 +396,11 @@ public class IntakeService {
                 .receiptNumber(ticket.getReceiptNumber())
                 .receiptAmount(ticket.getReceiptAmount())
                 .isReceiptVerified(Boolean.TRUE.equals(ticket.getIsReceiptVerified()))
+                .triageFlagId(ticket.getTriageFlagId())
+                .isOutOfDataset(Boolean.TRUE.equals(ticket.getIsOutOfDataset()))
+                .flagReason(ticket.getFlagReason())
+                .confirmedIcd10Code(ticket.getConfirmedIcd10Code())
+                .confirmedDiseaseName(ticket.getConfirmedDiseaseName())
                 .build();
     }
 }
