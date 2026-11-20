@@ -94,4 +94,10 @@ public class User {
 
     @Column(name = "valid_until")
     private LocalDate validUntil;
+
+    @Column(name = "medical_history", columnDefinition = "TEXT")
+    private String medicalHistory;
+
+    @Column(name = "allergies", columnDefinition = "TEXT")
+    private String allergies;
 }

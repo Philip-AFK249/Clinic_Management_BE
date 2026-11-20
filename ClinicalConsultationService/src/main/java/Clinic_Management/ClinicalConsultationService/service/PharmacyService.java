@@ -1,12 +1,12 @@
 package Clinic_Management.ClinicalConsultationService.service;
 
+import Clinic_Management.ClinicalConsultationService.dto.BatchRestockInvoiceRequest;
 import Clinic_Management.ClinicalConsultationService.dto.PrescriptionDetailResponse;
-import Clinic_Management.ClinicalConsultationService.entity.Drug;
-import Clinic_Management.ClinicalConsultationService.entity.Prescription;
-import Clinic_Management.ClinicalConsultationService.entity.PrescriptionItem;
-import Clinic_Management.ClinicalConsultationService.entity.PrescriptionStatus;
+import Clinic_Management.ClinicalConsultationService.dto.StockInvoiceResponse;
+import Clinic_Management.ClinicalConsultationService.entity.*;
 import Clinic_Management.ClinicalConsultationService.repository.DrugRepository;
 import Clinic_Management.ClinicalConsultationService.repository.PrescriptionRepository;
+import Clinic_Management.ClinicalConsultationService.repository.StockInvoiceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,6 +23,7 @@ public class PharmacyService {
 
     private final PrescriptionRepository prescriptionRepository;
     private final DrugRepository drugRepository;
+    private final StockInvoiceRepository stockInvoiceRepository;
 
     @Transactional(readOnly = true)
     public List<PrescriptionDetailResponse> getPrescriptionsByStatus(PrescriptionStatus status) {
@@ -184,5 +185,83 @@ public class PharmacyService {
     @Transactional(readOnly = true)
     public List<Drug> getAvailableDrugsForPrescription() {
         return drugRepository.findAvailableDrugsForPrescription(LocalDate.now());
+    }
+
+    @Transactional
+    public StockInvoiceResponse batchRestockFromInvoice(BatchRestockInvoiceRequest req) {
+        StockInvoice invoice = StockInvoice.builder()
+                .invoiceNumber(req.getInvoiceNumber().trim())
+                .supplierName(req.getSupplierName().trim())
+                .invoiceDate(req.getInvoiceDate())
+                .totalAmount(req.getTotalAmount())
+                .verifiedBy(req.getVerifiedBy().trim())
+                .notes(req.getNotes())
+                .build();
+
+        for (BatchRestockInvoiceRequest.BatchRestockItemDto itemDto : req.getItems()) {
+            Drug drug = drugRepository.findById(itemDto.getDrugId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thuốc có ID: " + itemDto.getDrugId()));
+
+            drug.setStockQuantity(drug.getStockQuantity() + itemDto.getQuantityAdded());
+            if (itemDto.getExpiryDate() != null) {
+                drug.setExpiryDate(itemDto.getExpiryDate());
+            }
+            if (Boolean.TRUE.equals(itemDto.getUpdateCatalogPrice())
+                    && itemDto.getImportUnitPrice() != null
+                    && itemDto.getImportUnitPrice().compareTo(java.math.BigDecimal.ZERO) > 0) {
+                drug.setUnitPrice(itemDto.getImportUnitPrice());
+            }
+            drugRepository.save(drug);
+
+            invoice.addItem(StockInvoiceItem.builder()
+                    .drug(drug)
+                    .ocrDrugName(itemDto.getOcrDrugName())
+                    .batchNumber(itemDto.getBatchNumber())
+                    .expiryDate(itemDto.getExpiryDate())
+                    .quantityAdded(itemDto.getQuantityAdded())
+                    .importUnitPrice(itemDto.getImportUnitPrice())
+                    .build());
+        }
+
+        StockInvoice saved = stockInvoiceRepository.save(invoice);
+        log.info("Đã nhập kho theo hóa đơn {} (NCC: {}) bởi {}, gồm {} mặt hàng",
+                saved.getInvoiceNumber(), saved.getSupplierName(), saved.getVerifiedBy(), saved.getItems().size());
+        return mapToStockInvoiceResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public List<StockInvoiceResponse> getStockInvoices() {
+        return stockInvoiceRepository.findAllWithItemsOrderByCreatedAtDesc().stream()
+                .map(this::mapToStockInvoiceResponse)
+                .toList();
+    }
+
+    private StockInvoiceResponse mapToStockInvoiceResponse(StockInvoice inv) {
+        List<StockInvoiceResponse.StockInvoiceItemResponse> itemDtos = inv.getItems().stream()
+                .map(i -> StockInvoiceResponse.StockInvoiceItemResponse.builder()
+                        .itemId(i.getId())
+                        .drugId(i.getDrug().getId())
+                        .drugCode(i.getDrug().getCode())
+                        .drugName(i.getDrug().getName())
+                        .ocrDrugName(i.getOcrDrugName())
+                        .batchNumber(i.getBatchNumber())
+                        .expiryDate(i.getExpiryDate())
+                        .quantityAdded(i.getQuantityAdded())
+                        .newStockQuantity(i.getDrug().getStockQuantity())
+                        .importUnitPrice(i.getImportUnitPrice())
+                        .build())
+                .toList();
+
+        return StockInvoiceResponse.builder()
+                .id(inv.getId())
+                .invoiceNumber(inv.getInvoiceNumber())
+                .supplierName(inv.getSupplierName())
+                .invoiceDate(inv.getInvoiceDate())
+                .totalAmount(inv.getTotalAmount())
+                .verifiedBy(inv.getVerifiedBy())
+                .notes(inv.getNotes())
+                .createdAt(inv.getCreatedAt())
+                .items(itemDtos)
+                .build();
     }
 }

@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @Data
 public class UpdateDrugRequest {
@@ -33,4 +34,5 @@ public class UpdateDrugRequest {
 
     private Boolean isPenicillinClass = false;
     private Boolean active = true;
+    private LocalDate expiryDate;
 }

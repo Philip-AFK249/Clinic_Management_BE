@@ -118,4 +118,14 @@ public class QueueTicket {
 
     @Column(name = "multi_specialty_note", columnDefinition = "TEXT")
     private String multiSpecialtyNote;
+
+    @Column(name = "receipt_number", length = 60)
+    private String receiptNumber;
+
+    @Column(name = "receipt_amount", precision = 12, scale = 2)
+    private java.math.BigDecimal receiptAmount;
+
+    @Builder.Default
+    @Column(name = "is_receipt_verified")
+    private Boolean isReceiptVerified = false;
 }

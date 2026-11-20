@@ -277,6 +277,9 @@ public class QueueService {
                 .secondaryDepartmentId(ticket.getSecondaryDepartmentId())
                 .secondaryDepartmentName(ticket.getSecondaryDepartmentName())
                 .multiSpecialtyNote(ticket.getMultiSpecialtyNote())
+                .receiptNumber(ticket.getReceiptNumber())
+                .receiptAmount(ticket.getReceiptAmount())
+                .isReceiptVerified(Boolean.TRUE.equals(ticket.getIsReceiptVerified()))
                 .build();
     }
 }

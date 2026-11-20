@@ -20,5 +20,7 @@ public class UpdatePatientRequest {
     private Boolean isOcrVerified;
     private LocalDate validFrom;
     private LocalDate validUntil;
+    private String medicalHistory;
+    private String allergies;
 
 }

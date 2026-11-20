@@ -39,4 +39,6 @@ public class AuthResponse {
     private LocalDateTime createdAt;
     private LocalDate validFrom;
     private LocalDate validUntil;
+    private String medicalHistory;
+    private String allergies;
 }

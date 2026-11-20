@@ -76,4 +76,17 @@ public class PharmacyController {
     public ResponseEntity<List<Drug>> getAvailableDrugs() {
         return ResponseEntity.ok(pharmacyService.getAvailableDrugsForPrescription());
     }
+
+    @PostMapping("/drugs/batch-restock-invoice")
+    @Operation(summary = "Nhập kho thuốc hàng loạt từ hóa đơn nhà cung cấp đã qua rà soát OCR")
+    public ResponseEntity<Clinic_Management.ClinicalConsultationService.dto.StockInvoiceResponse> batchRestockFromInvoice(
+            @Valid @RequestBody Clinic_Management.ClinicalConsultationService.dto.BatchRestockInvoiceRequest request) {
+        return ResponseEntity.ok(pharmacyService.batchRestockFromInvoice(request));
+    }
+
+    @GetMapping("/invoices")
+    @Operation(summary = "Lấy lịch sử hóa đơn nhập kho thuốc")
+    public ResponseEntity<List<Clinic_Management.ClinicalConsultationService.dto.StockInvoiceResponse>> getStockInvoices() {
+        return ResponseEntity.ok(pharmacyService.getStockInvoices());
+    }
 }

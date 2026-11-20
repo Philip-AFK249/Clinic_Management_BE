@@ -197,6 +197,9 @@ public class IntakeService {
                         .secondaryDepartmentId(request.getSecondaryDepartmentId())
                         .secondaryDepartmentName(request.getSecondaryDepartmentName())
                         .multiSpecialtyNote(request.getMultiSpecialtyNote())
+                        .receiptNumber(request.getReceiptNumber() != null ? request.getReceiptNumber().trim() : null)
+                        .receiptAmount(request.getReceiptAmount())
+                        .isReceiptVerified(Boolean.TRUE.equals(request.getIsReceiptVerified()))
                         .build();
 
                 savedTicket = queueTicketRepository.saveAndFlush(ticket);
@@ -235,6 +238,9 @@ public class IntakeService {
                 .secondaryDepartmentId(savedTicket.getSecondaryDepartmentId())
                 .secondaryDepartmentName(savedTicket.getSecondaryDepartmentName())
                 .multiSpecialtyNote(savedTicket.getMultiSpecialtyNote())
+                .receiptNumber(savedTicket.getReceiptNumber())
+                .receiptAmount(savedTicket.getReceiptAmount())
+                .isReceiptVerified(Boolean.TRUE.equals(savedTicket.getIsReceiptVerified()))
                 .build();
     }
     @Transactional
@@ -338,6 +344,9 @@ public class IntakeService {
                 .secondaryDepartmentId(ticket.getSecondaryDepartmentId())
                 .secondaryDepartmentName(ticket.getSecondaryDepartmentName())
                 .multiSpecialtyNote(ticket.getMultiSpecialtyNote())
+                .receiptNumber(ticket.getReceiptNumber())
+                .receiptAmount(ticket.getReceiptAmount())
+                .isReceiptVerified(Boolean.TRUE.equals(ticket.getIsReceiptVerified()))
                 .build();
     }
 }

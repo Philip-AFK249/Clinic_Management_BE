@@ -191,7 +191,14 @@ public class AuthService {
 
     private void applyPatientUpdates(User user, UpdatePatientRequest req) {
         user.setFullName(req.getFullName().trim());
-
+        if (req.getMedicalHistory() != null) {
+            String cleanedHistory = req.getMedicalHistory().trim();
+            user.setMedicalHistory(cleanedHistory.isEmpty() ? null : cleanedHistory);
+        }
+        if (req.getAllergies() != null) {
+            String cleanedAllergies = req.getAllergies().trim();
+            user.setAllergies(cleanedAllergies.isEmpty() ? null : cleanedAllergies);
+        }
         if (req.getPhone() != null) {
             String cleanedPhone = req.getPhone().trim();
             user.setPhone(cleanedPhone.isEmpty() ? null : cleanedPhone);
@@ -274,6 +281,8 @@ public class AuthService {
                 .validFrom(user.getValidFrom())
                 .validUntil(user.getValidUntil())
                 .createdAt(user.getCreatedAt())
+                .medicalHistory(user.getMedicalHistory())
+                .allergies(user.getAllergies())
                 .build();
     }
     @Transactional(readOnly = true)

@@ -27,4 +27,7 @@ public class IntakeResponse {
     private Long secondaryDepartmentId;
     private String secondaryDepartmentName;
     private String multiSpecialtyNote;
+    private String receiptNumber;
+    private java.math.BigDecimal receiptAmount;
+    private Boolean isReceiptVerified;
 }
