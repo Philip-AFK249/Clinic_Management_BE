@@ -232,16 +232,12 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
     @Query("""
         SELECT q FROM QueueTicket q
         JOIN FETCH q.patient
-        WHERE q.intakeSource = Clinic_Management.PatientIntakeService.entity.IntakeSource.ONLINE_BOOKING
+        WHERE q.intakeSource = :source
           AND q.appointmentDate >= :fromDate
-        ORDER BY
-          CASE q.status
-            WHEN Clinic_Management.PatientIntakeService.entity.QueueStatus.PENDING_CONFIRMATION THEN 1
-            WHEN Clinic_Management.PatientIntakeService.entity.QueueStatus.WAITING THEN 2
-            WHEN Clinic_Management.PatientIntakeService.entity.QueueStatus.REJECTED THEN 3
-            ELSE 4
-          END ASC,
-          q.checkInTime DESC
+        ORDER BY q.checkInTime DESC
     """)
-    List<QueueTicket> findAllOnlineTicketsForAdmin(@Param("fromDate") LocalDate fromDate);
+    List<QueueTicket> findAllOnlineTicketsForAdmin(
+            @Param("source") Clinic_Management.PatientIntakeService.entity.IntakeSource source,
+            @Param("fromDate") LocalDate fromDate
+    );
 }

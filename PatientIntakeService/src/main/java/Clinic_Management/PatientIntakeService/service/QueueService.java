@@ -6,12 +6,16 @@ import Clinic_Management.PatientIntakeService.entity.IntakeSource;
 import Clinic_Management.PatientIntakeService.entity.Patient;
 import Clinic_Management.PatientIntakeService.entity.QueueStatus;
 import Clinic_Management.PatientIntakeService.entity.QueueTicket;
+import Clinic_Management.PatientIntakeService.entity.IntakeSource;
+import Clinic_Management.PatientIntakeService.entity.QueueStatus;
 import Clinic_Management.PatientIntakeService.repository.PatientRepository;
 import Clinic_Management.PatientIntakeService.repository.QueueTicketRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
@@ -33,15 +37,18 @@ public class QueueService {
     private final PatientRepository patientRepository;
     private final ScheduleServiceClient scheduleClient;
     private final RestClient aiGatewayClient;
+    private final JdbcTemplate jdbcTemplate;
 
     public QueueService(
             QueueTicketRepository queueTicketRepository,
             PatientRepository patientRepository,
             ScheduleServiceClient scheduleClient,
+            JdbcTemplate jdbcTemplate,
             @Value("${services.ai-gateway.base-url:http://localhost:8008}") String aiGatewayBaseUrl) {
         this.queueTicketRepository = queueTicketRepository;
         this.patientRepository = patientRepository;
         this.scheduleClient = scheduleClient;
+        this.jdbcTemplate = jdbcTemplate;
 
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout((int) Duration.ofSeconds(2).toMillis());
@@ -334,13 +341,41 @@ public class QueueService {
         );
     }
 
+    @PostConstruct
+    public void migrateLegacyPendingPaymentRows() {
+        try {
+            int updated = jdbcTemplate.update(
+                    "UPDATE queue_tickets SET status = 'PENDING_CONFIRMATION' WHERE status = 'PENDING_PAYMENT'"
+            );
+            if (updated > 0) {
+                log.info("Migrated {} legacy PENDING_PAYMENT rows to PENDING_CONFIRMATION.", updated);
+            }
+        } catch (Exception ex) {
+            log.warn("Could not migrate legacy PENDING_PAYMENT rows: {}", ex.getMessage());
+        }
+    }
+
     @Transactional(readOnly = true)
     public List<QueueTicketDetailResponse> getPendingOnlineTickets() {
-        return queueTicketRepository
-                .findAllOnlineTicketsForAdmin(LocalDate.now().minusDays(1))
-                .stream()
+        List<QueueTicket> tickets = queueTicketRepository
+                .findAllOnlineTicketsForAdmin(IntakeSource.ONLINE_BOOKING, LocalDate.now().minusDays(1));
+        java.util.Comparator<QueueTicket> statusOrder = (a, b) -> {
+            int ra = rankStatus(a.getStatus());
+            int rb = rankStatus(b.getStatus());
+            if (ra != rb) return Integer.compare(ra, rb);
+            return b.getCheckInTime().compareTo(a.getCheckInTime());
+        };
+        return tickets.stream()
+                .sorted(statusOrder)
                 .map(t -> mapToDetailResponse(t, t.getPatient()))
                 .toList();
+    }
+
+    private int rankStatus(QueueStatus status) {
+        if (status == QueueStatus.PENDING_CONFIRMATION) return 1;
+        if (status == QueueStatus.WAITING) return 2;
+        if (status == QueueStatus.REJECTED) return 3;
+        return 4;
     }
 
     @Transactional
