@@ -18,6 +18,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -310,7 +311,65 @@ public class QueueService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public List<QueueTicketDetailResponse> getPendingApprovalTickets() {
+        LocalDateTime nowInClinic = LocalDateTime.now(CLINIC_ZONE);
+        List<QueueTicket> tickets = queueTicketRepository
+                .findByStatusOrderByCheckInTimeDesc(QueueStatus.PENDING_APPROVAL);
+
+        List<QueueTicketDetailResponse> pendingTickets = new ArrayList<>();
+        for (QueueTicket ticket : tickets) {
+            LocalDateTime holdExpiresAt = ticket.getHoldExpiresAt();
+            if (holdExpiresAt != null && holdExpiresAt.isBefore(nowInClinic)) {
+                ticket.setStatus(QueueStatus.CANCELLED);
+                queueTicketRepository.save(ticket);
+                scheduleClient.releaseSlot(ticket.getAppointmentDate(), ticket.getTicketNumber());
+                log.info("Phiếu đặt lịch {} đã hết hạn giữ chỗ, tự động hủy và giải phóng slot",
+                        ticket.getTicketNumber());
+                continue;
+            }
+            pendingTickets.add(mapToDetailResponse(ticket, ticket.getPatient()));
+        }
+        return pendingTickets;
+    }
+
+    @Transactional
+    public QueueTicketDetailResponse approveTicket(String ticketNumber) {
+        QueueTicket ticket = queueTicketRepository.findTopByTicketNumberOrderByAppointmentDateDesc(ticketNumber)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phiếu khám có mã: " + ticketNumber));
+
+        if (ticket.getStatus() != QueueStatus.PENDING_APPROVAL) {
+            throw new IllegalStateException(
+                    "Phiếu " + ticketNumber + " không ở trạng thái chờ xác nhận thanh toán."
+            );
+        }
+
+        ticket.setStatus(QueueStatus.WAITING);
+        ticket.setHoldExpiresAt(null);
+        QueueTicket saved = queueTicketRepository.save(ticket);
+        log.info("Admin đã duyệt phiếu đặt lịch {} sang trạng thái WAITING", ticketNumber);
+        return mapToDetailResponse(saved, saved.getPatient());
+    }
+
+    @Transactional
+    public QueueTicketDetailResponse rejectTicket(String ticketNumber) {
+        QueueTicket ticket = queueTicketRepository.findTopByTicketNumberOrderByAppointmentDateDesc(ticketNumber)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phiếu khám có mã: " + ticketNumber));
+
+        ticket.setStatus(QueueStatus.CANCELLED);
+        QueueTicket saved = queueTicketRepository.save(ticket);
+        scheduleClient.releaseSlot(saved.getAppointmentDate(), saved.getTicketNumber());
+        log.info("Admin đã từ chối phiếu đặt lịch {} và giải phóng slot", ticketNumber);
+        return mapToDetailResponse(saved, saved.getPatient());
+    }
+
     private QueueTicketDetailResponse mapToDetailResponse(QueueTicket ticket, Patient patient) {
+        LocalDateTime nowInClinic = LocalDateTime.now(CLINIC_ZONE);
+        LocalDateTime holdExpiresAt = ticket.getHoldExpiresAt();
+        Long remainingSeconds = (holdExpiresAt == null || holdExpiresAt.isBefore(nowInClinic))
+                ? 0L
+                : Duration.between(nowInClinic, holdExpiresAt).getSeconds();
+
         return QueueTicketDetailResponse.builder()
                 .ticketNumber(ticket.getTicketNumber())
                 .departmentId(ticket.getDepartmentId())
@@ -354,6 +413,8 @@ public class QueueService {
                 .flagReason(ticket.getFlagReason())
                 .confirmedIcd10Code(ticket.getConfirmedIcd10Code())
                 .confirmedDiseaseName(ticket.getConfirmedDiseaseName())
+                .holdExpiresAt(holdExpiresAt)
+                .remainingSeconds(remainingSeconds)
                 .build();
     }
 }

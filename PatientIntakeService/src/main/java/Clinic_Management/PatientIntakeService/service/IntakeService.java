@@ -206,9 +206,13 @@ public class IntakeService {
                 : null;
         boolean isOutOfDataset = Boolean.TRUE.equals(request.getIsOutOfDataset()) || cleanedFlagId != null;
 
-        // Tất cả nguồn tiếp nhận hiện tại tạo phiếu WAITING trực tiếp.
-        // Luồng giữ chỗ/QR thanh toán sẽ được cài lại sau dưới dạng mô phỏng local.
-        QueueStatus initialQueueStatus = QueueStatus.WAITING;
+        boolean isOnlineBooking = request.getIntakeSource() == IntakeSource.ONLINE_BOOKING;
+        QueueStatus initialQueueStatus = isOnlineBooking
+                ? QueueStatus.PENDING_APPROVAL
+                : QueueStatus.WAITING;
+        LocalDateTime holdExpiresAt = isOnlineBooking
+                ? nowInClinic.plusMinutes(3)
+                : null;
 
         QueueTicket savedTicket = null;
         ScheduleAssignDoctorResponse doctorAssignment = null;
@@ -248,6 +252,7 @@ public class IntakeService {
                         .priorityLevel(request.getPriorityLevel())
                         .intakeSource(request.getIntakeSource())
                         .status(initialQueueStatus)
+                        .holdExpiresAt(holdExpiresAt)
                         .chiefComplaint(request.getChiefComplaint())
                         .secondaryDepartmentId(request.getSecondaryDepartmentId())
                         .secondaryDepartmentName(request.getSecondaryDepartmentName())

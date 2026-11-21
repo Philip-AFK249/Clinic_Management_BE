@@ -145,4 +145,7 @@ public class QueueTicket {
 
     @Column(name = "confirmed_disease_name", length = 255)
     private String confirmedDiseaseName;
+
+    @Column(name = "hold_expires_at")
+    private LocalDateTime holdExpiresAt;
 }

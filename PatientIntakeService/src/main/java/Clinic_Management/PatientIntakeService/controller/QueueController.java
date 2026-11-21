@@ -145,6 +145,24 @@ public class QueueController {
         return ResponseEntity.ok(queueService.getReceptionHistoryQueue(departmentId, targetDate));
     }
 
+    @GetMapping("/admin/pending-approval")
+    @Operation(summary = "Admin/Lễ tân lấy danh sách phiếu khám đang chờ xác nhận thanh toán")
+    public ResponseEntity<List<QueueTicketDetailResponse>> getPendingApprovalTickets() {
+        return ResponseEntity.ok(queueService.getPendingApprovalTickets());
+    }
+
+    @PatchMapping("/tickets/{ticketNumber}/approve")
+    @Operation(summary = "Admin duyệt ACCEPT vé đặt lịch của bệnh nhân")
+    public ResponseEntity<QueueTicketDetailResponse> approveTicket(@PathVariable String ticketNumber) {
+        return ResponseEntity.ok(queueService.approveTicket(ticketNumber));
+    }
+
+    @PatchMapping("/tickets/{ticketNumber}/reject")
+    @Operation(summary = "Admin từ chối REJECT vé đặt lịch (tự hủy và giải phóng slot)")
+    public ResponseEntity<QueueTicketDetailResponse> rejectTicket(@PathVariable String ticketNumber) {
+        return ResponseEntity.ok(queueService.rejectTicket(ticketNumber));
+    }
+
     public record ConfirmedDiagnosisPayload(
             String icd10Code,
             String diseaseName,
