@@ -156,4 +156,10 @@ public class QueueTicket {
 
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;
+
+    @Column(name = "paid_at")
+    private LocalDateTime paidAt;
+
+    @Column(name = "payment_method", length = 50)
+    private String paymentMethod;
 }

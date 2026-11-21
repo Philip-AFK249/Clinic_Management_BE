@@ -206,7 +206,7 @@ public class DoctorScheduleService {
                         .sum();
 
                 long bookedCount = slotAssignmentRepository
-                        .countActiveByDepartmentAndSlot(departmentId, date, slotStart, now);
+                        .countActiveByDepartmentAndSlot(departmentId, date, slotStart);
 
                 int availableCapacity = Math.max(0, totalCapacity - (int) bookedCount);
 
@@ -252,7 +252,7 @@ public class DoctorScheduleService {
             for (DoctorShift shift : activeShifts) {
                 if (shift.getDoctor().getId().equals(request.getPreferredDoctorId())) {
                     long currentAssigned = slotAssignmentRepository
-                            .countActiveByDoctorAndSlot(shift.getDoctor().getId(), date, slotStartTime, now);
+                            .countActiveByDoctorAndSlot(shift.getDoctor().getId(), date, slotStartTime);
                     if (currentAssigned < shift.getMaxPatientsPerSlot()) {
                         selectedDoctor = shift.getDoctor();
                         log.info("Phân bổ theo chỉ định của bệnh nhân: Bác sĩ ID {}", selectedDoctor.getId());
@@ -269,7 +269,7 @@ public class DoctorScheduleService {
             for (DoctorShift shift : activeShifts) {
                 Doctor doctor = shift.getDoctor();
                 long currentAssigned = slotAssignmentRepository
-                        .countActiveByDoctorAndSlot(doctor.getId(), date, slotStartTime, now);
+                        .countActiveByDoctorAndSlot(doctor.getId(), date, slotStartTime);
 
                 if (currentAssigned < shift.getMaxPatientsPerSlot() && currentAssigned < minPatientCount) {
                     minPatientCount = currentAssigned;
@@ -283,9 +283,7 @@ public class DoctorScheduleService {
         }
 
         boolean isTemporary = Boolean.TRUE.equals(request.getTemporary());
-        LocalDateTime expiresAt = isTemporary
-                ? (request.getExpiresAt() != null ? request.getExpiresAt() : now.plusMinutes(3))
-                : null;
+        LocalDateTime expiresAt = null;
 
         SlotAssignment assignment = SlotAssignment.builder()
                 .ticketNumber(ticketNumber)
@@ -319,15 +317,9 @@ public class DoctorScheduleService {
         if (assignments.isEmpty()) {
             throw new IllegalArgumentException("Không tìm thấy slot giữ chỗ cho phiếu: " + ticketNumber);
         }
-        LocalDateTime now = LocalDateTime.now();
         for (SlotAssignment assignment : assignments) {
-            if ("TEMPORARY".equals(assignment.getStatus())
-                    && assignment.getExpiresAt() != null
-                    && !assignment.getExpiresAt().isAfter(now)) {
-                assignment.setStatus("CANCELLED");
-                assignment.setExpiresAt(null);
-                slotAssignmentRepository.save(assignment);
-                throw new IllegalStateException("Suất giữ chỗ tạm thời đã hết hạn 3 phút và đã bị hủy.");
+            if ("CANCELLED".equals(assignment.getStatus())) {
+                throw new IllegalStateException("Suất giữ chỗ đã bị hủy.");
             }
             assignment.setStatus("BOOKED");
             assignment.setExpiresAt(null);
@@ -349,15 +341,6 @@ public class DoctorScheduleService {
         }
         slotAssignmentRepository.saveAll(assignments);
         log.info("Đã hủy và giải phóng slot_assignment cho phiếu: {}", ticketNumber);
-    }
-
-    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 10000)
-    @Transactional
-    public void cleanupExpiredTemporarySlots() {
-        int released = slotAssignmentRepository.releaseExpiredTemporaryAssignments(LocalDateTime.now());
-        if (released > 0) {
-            log.info("Đã tự động giải phóng {} suất giữ chỗ tạm thời quá hạn 3 phút.", released);
-        }
     }
 
 }

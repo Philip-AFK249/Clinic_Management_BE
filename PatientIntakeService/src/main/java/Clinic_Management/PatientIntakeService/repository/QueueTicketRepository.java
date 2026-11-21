@@ -231,25 +231,17 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
 
     @Query("""
         SELECT q FROM QueueTicket q
-        WHERE q.status = :status
-          AND q.expiresAt IS NOT NULL
-          AND q.expiresAt <= :now
+        JOIN FETCH q.patient
+        WHERE q.intakeSource = Clinic_Management.PatientIntakeService.entity.IntakeSource.ONLINE_BOOKING
+          AND q.appointmentDate >= :fromDate
+        ORDER BY
+          CASE q.status
+            WHEN Clinic_Management.PatientIntakeService.entity.QueueStatus.PENDING_CONFIRMATION THEN 1
+            WHEN Clinic_Management.PatientIntakeService.entity.QueueStatus.WAITING THEN 2
+            WHEN Clinic_Management.PatientIntakeService.entity.QueueStatus.REJECTED THEN 3
+            ELSE 4
+          END ASC,
+          q.checkInTime DESC
     """)
-    List<QueueTicket> findExpiredTemporaryTickets(
-            @Param("status") QueueStatus status,
-            @Param("now") java.time.LocalDateTime now
-    );
-
-    @Query("""
-        SELECT q FROM QueueTicket q
-        WHERE q.patient.id = :patientId
-          AND q.status = :status
-          AND q.expiresAt IS NOT NULL
-          AND q.expiresAt <= :now
-    """)
-    List<QueueTicket> findExpiredTemporaryTicketsForPatient(
-            @Param("patientId") Long patientId,
-            @Param("status") QueueStatus status,
-            @Param("now") java.time.LocalDateTime now
-    );
+    List<QueueTicket> findAllOnlineTicketsForAdmin(@Param("fromDate") LocalDate fromDate);
 }

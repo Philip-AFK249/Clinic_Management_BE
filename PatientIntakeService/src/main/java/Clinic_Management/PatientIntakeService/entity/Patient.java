@@ -50,6 +50,12 @@ public class Patient {
     @Column(name = "is_ocr_verified", nullable = false)
     private Boolean isOcrVerified = false;
 
+    @Column(name = "booking_locked_until")
+    private LocalDateTime bookingLockedUntil;
+
+    @Column(name = "booking_lock_reason", columnDefinition = "TEXT")
+    private String bookingLockReason;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

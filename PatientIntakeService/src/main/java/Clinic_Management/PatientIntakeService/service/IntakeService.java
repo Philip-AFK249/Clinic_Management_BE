@@ -26,7 +26,6 @@ import java.util.Map;
 @Service
 @Slf4j
 public class IntakeService {
-    private static final long TEMPORARY_TICKET_TTL_MINUTES = 3L;
     private final PatientRepository patientRepository;
     private final QueueTicketRepository queueTicketRepository;
     private final ScheduleServiceClient scheduleClient;
@@ -162,18 +161,15 @@ public class IntakeService {
 
         Patient patient = resolvePatient(request);
 
-        // Dọn dẹp vé tạm của chính bệnh nhân này nếu đã quá hạn 3 phút trước khi kiểm tra trùng lịch
-        List<QueueTicket> staleTempTickets = queueTicketRepository.findExpiredTemporaryTicketsForPatient(
-                patient.getId(),
-                QueueStatus.PENDING_CONFIRMATION,
-                LocalDateTime.now()
-        );
-        for (QueueTicket stale : staleTempTickets) {
-            stale.setStatus(QueueStatus.CANCELLED);
-            stale.setExpiresAt(null);
-            stale.setRejectionReason("Quá thời hạn 3 phút chưa được xác thực, hệ thống tự động hủy vé tạm.");
-            queueTicketRepository.save(stale);
-            scheduleClient.releaseSlot(stale.getTicketNumber());
+        LocalDateTime now = LocalDateTime.now();
+        if (patient.getBookingLockedUntil() != null && patient.getBookingLockedUntil().isAfter(now)) {
+            long secondsLeft = java.time.Duration.between(now, patient.getBookingLockedUntil()).getSeconds();
+            long mins = secondsLeft / 60;
+            long secs = secondsLeft % 60;
+            throw new IllegalStateException(String.format(
+                    "Tài khoản đang tạm khóa đặt lịch do vé trước đó bị từ chối. Vui lòng thử lại sau %02d:%02d.",
+                    mins, secs
+            ));
         }
 
         List<QueueStatus> activeStatuses = List.of(
@@ -211,11 +207,9 @@ public class IntakeService {
             );
         }
 
-        // Đặt lịch online -> tạo vé tạm (chờ duyệt 3 phút); tại quầy/Kiosk -> vào thẳng hàng đợi chính thức
+        // Đặt lịch online -> tạo vé tạm (chờ duyệt); tại quầy/Kiosk -> vào thẳng hàng đợi chính thức
         boolean isOnlineBooking = request.getIntakeSource() == IntakeSource.ONLINE_BOOKING;
-        LocalDateTime temporaryExpiresAt = isOnlineBooking
-                ? LocalDateTime.now().plusMinutes(TEMPORARY_TICKET_TTL_MINUTES)
-                : null;
+        LocalDateTime temporaryExpiresAt = null;
         QueueStatus initialStatus = isOnlineBooking
                 ? QueueStatus.PENDING_CONFIRMATION
                 : QueueStatus.WAITING;
@@ -338,6 +332,14 @@ public class IntakeService {
                 .or(() -> queueTicketRepository.findTopByTicketNumberOrderByAppointmentDateDesc(ticketNumber))
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phiếu khám có mã: " + ticketNumber));
 
+        if (status == QueueStatus.CANCELLED
+                && ticket.getIntakeSource() == IntakeSource.ONLINE_BOOKING
+                && (ticket.getStatus() == QueueStatus.WAITING
+                || ticket.getStatus() == QueueStatus.CALLED
+                || ticket.getStatus() == QueueStatus.IN_CONSULTATION)) {
+            throw new IllegalStateException("Vé đặt lịch trực tuyến đã được xác nhận chính thức lên hệ thống. Theo quy định phòng khám, không cho phép hủy lịch và không hoàn phí.");
+        }
+
         ticket.setStatus(status);
         QueueTicket saved = queueTicketRepository.save(ticket);
         log.info("Cập nhật trạng thái phiếu {} sang {}", ticketNumber, status);
@@ -436,6 +438,8 @@ public class IntakeService {
                 .flagReason(ticket.getFlagReason())
                 .confirmedIcd10Code(ticket.getConfirmedIcd10Code())
                 .confirmedDiseaseName(ticket.getConfirmedDiseaseName())
+                .paidAt(ticket.getPaidAt())
+                .paymentMethod(ticket.getPaymentMethod())
                 .build();
     }
 }

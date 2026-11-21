@@ -69,4 +69,6 @@ public class QueueTicketDetailResponse {
     private String confirmedBy;
     private String rejectionReason;
     private Boolean canCancel;
+    private LocalDateTime paidAt;
+    private String paymentMethod;
 }

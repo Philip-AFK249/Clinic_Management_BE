@@ -20,16 +20,12 @@ public interface SlotAssignmentRepository extends JpaRepository<SlotAssignment, 
         WHERE sa.doctor.id = :doctorId
           AND sa.appointmentDate = :appointmentDate
           AND sa.slotStartTime = :slotStartTime
-          AND (
-              sa.status = 'BOOKED'
-              OR (sa.status = 'TEMPORARY' AND (sa.expiresAt IS NULL OR sa.expiresAt > :now))
-          )
+          AND sa.status IN ('BOOKED', 'TEMPORARY')
     """)
     long countActiveByDoctorAndSlot(
             @Param("doctorId") Long doctorId,
             @Param("appointmentDate") LocalDate appointmentDate,
-            @Param("slotStartTime") LocalTime slotStartTime,
-            @Param("now") LocalDateTime now
+            @Param("slotStartTime") LocalTime slotStartTime
     );
 
     @Query("""
@@ -37,16 +33,12 @@ public interface SlotAssignmentRepository extends JpaRepository<SlotAssignment, 
         WHERE sa.departmentId = :departmentId
           AND sa.appointmentDate = :appointmentDate
           AND sa.slotStartTime = :slotStartTime
-          AND (
-              sa.status = 'BOOKED'
-              OR (sa.status = 'TEMPORARY' AND (sa.expiresAt IS NULL OR sa.expiresAt > :now))
-          )
+          AND sa.status IN ('BOOKED', 'TEMPORARY')
     """)
     long countActiveByDepartmentAndSlot(
             @Param("departmentId") Long departmentId,
             @Param("appointmentDate") LocalDate appointmentDate,
-            @Param("slotStartTime") LocalTime slotStartTime,
-            @Param("now") LocalDateTime now
+            @Param("slotStartTime") LocalTime slotStartTime
     );
 
     List<SlotAssignment> findByTicketNumber(String ticketNumber);
@@ -54,14 +46,4 @@ public interface SlotAssignmentRepository extends JpaRepository<SlotAssignment, 
     List<SlotAssignment> findByDepartmentIdAndAppointmentDateAndSlotStartTime(
             Long departmentId, LocalDate appointmentDate, LocalTime slotStartTime
     );
-
-    @Modifying
-    @Query("""
-        UPDATE SlotAssignment sa
-        SET sa.status = 'CANCELLED', sa.expiresAt = NULL
-        WHERE sa.status = 'TEMPORARY'
-          AND sa.expiresAt IS NOT NULL
-          AND sa.expiresAt <= :now
-    """)
-    int releaseExpiredTemporaryAssignments(@Param("now") LocalDateTime now);
 }

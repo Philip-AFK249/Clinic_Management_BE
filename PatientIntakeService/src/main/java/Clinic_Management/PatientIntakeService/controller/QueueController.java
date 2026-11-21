@@ -197,4 +197,21 @@ public class QueueController {
                 payload != null ? payload.adminName() : null
         ));
     }
+
+    @PatchMapping("/tickets/{ticketNumber}/pay")
+    @Operation(summary = "Bệnh nhân thanh toán online cho vé")
+    public ResponseEntity<QueueTicketDetailResponse> payOnlineTicket(
+            @PathVariable String ticketNumber,
+            @RequestBody(required = false) java.util.Map<String, String> payload) {
+        String paymentMethod = payload != null ? payload.get("paymentMethod") : null;
+        return ResponseEntity.ok(queueService.payOnlineTicket(ticketNumber, paymentMethod));
+    }
+
+    @GetMapping("/patient/booking-lock")
+    @Operation(summary = "Kiểm tra trạng thái khóa đặt lịch của bệnh nhân")
+    public ResponseEntity<QueueService.BookingLockStatusResponse> getBookingLockStatus(
+            @RequestParam(required = false) Long patientId,
+            @RequestParam(required = false) String identifier) {
+        return ResponseEntity.ok(queueService.getBookingLockStatus(patientId, identifier));
+    }
 }
