@@ -28,15 +28,6 @@ services:
   ai-gateway:
     base-url: http://localhost:8008
 
-vietqr:
-  bank-id: ${VIETQR_BANK_ID:VCB}
-  account-no: ${VIETQR_ACCOUNT_NO:1040466448}
-  account-name: ${VIETQR_ACCOUNT_NAME:TRAN NGO VINH PHUC}
-  template: ${VIETQR_TEMPLATE:compact2}
-  deposit-amount: ${VIETQR_DEPOSIT_AMOUNT:2000}
-  hold-minutes: ${VIETQR_HOLD_MINUTES:15}
-
-
 springdoc:
   api-docs:
     path: /v3/api-docs

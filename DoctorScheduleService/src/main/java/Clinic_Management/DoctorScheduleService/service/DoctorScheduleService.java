@@ -77,7 +77,6 @@ public class DoctorScheduleService {
             return Collections.emptyList();
         }
 
-        LocalDateTime now = LocalDateTime.now(CLINIC_ZONE);
         List<TimeSlotResponse> slots = new ArrayList<>();
 
         for (ShiftSession session : ShiftSession.values()) {
@@ -96,9 +95,8 @@ public class DoctorScheduleService {
                         .mapToInt(DoctorShift::getMaxPatientsPerSlot)
                         .sum();
 
-                // Đếm cả BOOKED và HOLD chưa hết hạn để chặn đặt đè trong lúc chờ thanh toán
                 long bookedCount = slotAssignmentRepository
-                        .countActiveOccupiedByDepartmentAndSlot(departmentId, date, slotStart, now);
+                        .countBookedByDepartmentAndSlot(departmentId, date, slotStart);
 
                 int availableCapacity = Math.max(0, totalCapacity - (int) bookedCount);
 
@@ -124,7 +122,6 @@ public class DoctorScheduleService {
         LocalDate date = request.getAppointmentDate();
         LocalTime slotStartTime = request.getSlotStartTime();
         String ticketNumber = request.getTicketNumber();
-        LocalDateTime now = LocalDateTime.now(CLINIC_ZONE);
 
         ShiftSession session = slotStartTime.isBefore(LocalTime.of(12, 0)) ? ShiftSession.MORNING : ShiftSession.AFTERNOON;
 
@@ -144,8 +141,8 @@ public class DoctorScheduleService {
             for (DoctorShift shift : activeShifts) {
                 if (shift.getDoctor().getId().equals(request.getPreferredDoctorId())) {
                     long currentAssigned = slotAssignmentRepository
-                            .countActiveOccupiedByDoctorAndSlot(
-                                    shift.getDoctor().getId(), date, slotStartTime, now);
+                            .countBookedByDoctorAndSlot(
+                                    shift.getDoctor().getId(), date, slotStartTime);
                     if (currentAssigned < shift.getMaxPatientsPerSlot()) {
                         selectedDoctor = shift.getDoctor();
                         log.info("Phân bổ theo chỉ định của bệnh nhân: Bác sĩ ID {}", selectedDoctor.getId());
@@ -162,8 +159,8 @@ public class DoctorScheduleService {
             for (DoctorShift shift : activeShifts) {
                 Doctor doctor = shift.getDoctor();
                 long currentAssigned = slotAssignmentRepository
-                        .countActiveOccupiedByDoctorAndSlot(
-                                doctor.getId(), date, slotStartTime, now);
+                        .countBookedByDoctorAndSlot(
+                                doctor.getId(), date, slotStartTime);
 
                 if (currentAssigned < shift.getMaxPatientsPerSlot() && currentAssigned < minPatientCount) {
                     minPatientCount = currentAssigned;
@@ -176,9 +173,6 @@ public class DoctorScheduleService {
             throw new IllegalStateException("Khung giờ này đã kín lịch cho tất cả bác sĩ.");
         }
 
-        boolean holdOnly = Boolean.TRUE.equals(request.getHoldOnly());
-        String initialStatus = holdOnly ? "HOLD" : "BOOKED";
-
         SlotAssignment assignment = SlotAssignment.builder()
                 .ticketNumber(ticketNumber)
                 .doctor(selectedDoctor)
@@ -189,8 +183,7 @@ public class DoctorScheduleService {
                 .patientPhone(request.getPatientPhone())
                 .insuranceCode(request.getInsuranceCode())
                 .chiefComplaint(request.getChiefComplaint())
-                .status(initialStatus)
-                .holdExpiresAt(holdOnly ? request.getHoldExpiresAt() : null)
+                .status("BOOKED")
                 .build();
         slotAssignmentRepository.save(assignment);
 
@@ -201,57 +194,12 @@ public class DoctorScheduleService {
                 .roomNumber(selectedDoctor.getRoomNumber())
                 .date(date)
                 .slotStartTime(slotStartTime)
-                .message(holdOnly
-                        ? "Đã giữ chỗ tạm chờ thanh toán cọc."
-                        : "Phân bổ bác sĩ thành công.")
+                .message("Phân bổ bác sĩ thành công.")
                 .build();
     }
 
     /**
-     * Chốt slot từ HOLD -> BOOKED khi thanh toán cọc thành công
-     */
-    @Transactional
-    public void confirmSlotAssignment(LocalDate appointmentDate, String ticketNumber) {
-        List<SlotAssignment> assignments = (appointmentDate != null)
-                ? slotAssignmentRepository.findByAppointmentDateAndTicketNumber(appointmentDate, ticketNumber)
-                : slotAssignmentRepository.findByTicketNumber(ticketNumber);
-
-        if (assignments.isEmpty()) {
-            throw new IllegalArgumentException("Không tìm thấy slot_assignment cho phiếu: " + ticketNumber);
-        }
-
-        LocalDateTime now = LocalDateTime.now(CLINIC_ZONE);
-        for (SlotAssignment assignment : assignments) {
-            if ("BOOKED".equalsIgnoreCase(assignment.getStatus())) {
-                continue;
-            }
-            if ("CANCELLED".equalsIgnoreCase(assignment.getStatus()) || "EXPIRED".equalsIgnoreCase(assignment.getStatus())) {
-                // Nếu webhook về trễ sau khi cronjob vừa giải phóng slot, kiểm tra xem bác sĩ còn chỗ trống không
-                ShiftSession session = assignment.getSlotStartTime().isBefore(LocalTime.of(12, 0))
-                        ? ShiftSession.MORNING : ShiftSession.AFTERNOON;
-                int maxPerSlot = shiftRepository
-                        .findByDepartmentIdAndShiftDateAndDutyType(assignment.getDepartmentId(), assignment.getAppointmentDate(), DutyType.OUTPATIENT)
-                        .stream()
-                        .filter(s -> s.getSession() == session && s.getDoctor().getId().equals(assignment.getDoctor().getId()))
-                        .mapToInt(DoctorShift::getMaxPatientsPerSlot)
-                        .findFirst()
-                        .orElse(4);
-
-                long occupied = slotAssignmentRepository.countActiveOccupiedByDoctorAndSlot(
-                        assignment.getDoctor().getId(), assignment.getAppointmentDate(), assignment.getSlotStartTime(), now);
-                if (occupied >= maxPerSlot) {
-                    throw new IllegalStateException("Slot khám của phiếu " + ticketNumber + " đã hết chỗ sau khi quá hạn thanh toán.");
-                }
-            }
-            assignment.setStatus("BOOKED");
-            assignment.setHoldExpiresAt(null);
-        }
-        slotAssignmentRepository.saveAll(assignments);
-        log.info("Đã chốt slot BOOKED cho phiếu {} (ngày {})", ticketNumber, appointmentDate);
-    }
-
-    /**
-     * Giải phóng slot khi phiếu khám bị hủy hoặc hết hạn giữ chỗ (lọc theo cả ngày khám để tránh trùng mã vé #A-001)
+     * Giải phóng slot khi phiếu khám bị hủy (lọc theo cả ngày khám để tránh trùng mã vé #A-001)
      */
     @Transactional
     public void releaseSlotAssignment(LocalDate appointmentDate, String ticketNumber) {
@@ -265,7 +213,6 @@ public class DoctorScheduleService {
         }
         for (SlotAssignment assignment : assignments) {
             assignment.setStatus("CANCELLED");
-            assignment.setHoldExpiresAt(null);
         }
         slotAssignmentRepository.saveAll(assignments);
         log.info("Đã hủy và giải phóng slot_assignment cho phiếu: {} (ngày {})", ticketNumber, appointmentDate);

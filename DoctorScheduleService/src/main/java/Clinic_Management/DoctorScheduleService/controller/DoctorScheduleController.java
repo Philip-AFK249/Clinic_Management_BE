@@ -99,17 +99,8 @@ public class DoctorScheduleController {
         return ResponseEntity.noContent().build();
     }
 
-    @PatchMapping("/assignments/{ticketNumber}/confirm")
-    @Operation(summary = "Chốt slot khám từ HOLD sang BOOKED sau khi thanh toán cọc")
-    public ResponseEntity<Void> confirmSlot(
-            @PathVariable String ticketNumber,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        scheduleService.confirmSlotAssignment(date, ticketNumber);
-        return ResponseEntity.noContent().build();
-    }
-
     @DeleteMapping("/assignments/{ticketNumber}")
-    @Operation(summary = "Giải phóng slot khám khi phiếu khám hoặc lịch hẹn bị hủy/hết hạn")
+    @Operation(summary = "Giải phóng slot khám khi phiếu khám hoặc lịch hẹn bị hủy")
     public ResponseEntity<Void> releaseSlot(
             @PathVariable String ticketNumber,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {

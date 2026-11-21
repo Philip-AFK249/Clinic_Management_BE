@@ -8,7 +8,6 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -63,19 +62,6 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
 
     Optional<QueueTicket> findTopByTicketNumberOrderByAppointmentDateDesc(String ticketNumber);
     Optional<QueueTicket> findByAppointmentDateAndTicketNumber(LocalDate appointmentDate, String ticketNumber);
-
-    @Query("""
-        SELECT q FROM QueueTicket q
-        JOIN FETCH q.patient
-        WHERE q.paymentCode = :paymentCode
-    """)
-    Optional<QueueTicket> findByPaymentCode(@Param("paymentCode") String paymentCode);
-
-    boolean existsByPaymentCode(String paymentCode);
-
-    boolean existsByExternalTxId(String externalTxId);
-
-    List<QueueTicket> findByStatusAndPaymentExpiresAtBefore(QueueStatus status, LocalDateTime cutoff);
 
     @Query("""
         SELECT q FROM QueueTicket q

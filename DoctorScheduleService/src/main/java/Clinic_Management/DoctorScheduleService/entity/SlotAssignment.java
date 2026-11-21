@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 @Entity
@@ -57,7 +56,4 @@ public class SlotAssignment {
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
     private String status = "BOOKED";
-
-    @Column(name = "hold_expires_at")
-    private LocalDateTime holdExpiresAt;
 }

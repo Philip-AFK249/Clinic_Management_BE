@@ -1,4 +1,5 @@
 package Clinic_Management.PatientIntakeService.dto;
+import Clinic_Management.PatientIntakeService.entity.QueueStatus;
 import Clinic_Management.PatientIntakeService.entity.TriagePriority;
 import lombok.Builder;
 import lombok.Data;
@@ -33,12 +34,5 @@ public class IntakeResponse {
     private String triageFlagId;
     private Boolean isOutOfDataset;
     private String flagReason;
-    private Clinic_Management.PatientIntakeService.entity.QueueStatus status;
-    private Clinic_Management.PatientIntakeService.entity.PaymentStatus paymentStatus;
-    private String paymentCode;
-    private java.math.BigDecimal depositAmount;
-    private java.math.BigDecimal paidAmount;
-    private LocalDateTime paymentExpiresAt;
-    private LocalDateTime paidAt;
-    private String qrUrl;
+    private QueueStatus status;
 }

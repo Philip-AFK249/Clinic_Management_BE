@@ -7,7 +7,6 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -19,16 +18,12 @@ public interface SlotAssignmentRepository extends JpaRepository<SlotAssignment, 
         WHERE sa.doctor.id = :doctorId
           AND sa.appointmentDate = :appointmentDate
           AND sa.slotStartTime = :slotStartTime
-          AND (
-              sa.status = 'BOOKED'
-              OR (sa.status = 'HOLD' AND (sa.holdExpiresAt IS NULL OR sa.holdExpiresAt > :now))
-          )
+          AND sa.status = 'BOOKED'
     """)
-    long countActiveOccupiedByDoctorAndSlot(
+    long countBookedByDoctorAndSlot(
             @Param("doctorId") Long doctorId,
             @Param("appointmentDate") LocalDate appointmentDate,
-            @Param("slotStartTime") LocalTime slotStartTime,
-            @Param("now") LocalDateTime now
+            @Param("slotStartTime") LocalTime slotStartTime
     );
 
     @Query("""
@@ -36,23 +31,17 @@ public interface SlotAssignmentRepository extends JpaRepository<SlotAssignment, 
         WHERE sa.departmentId = :departmentId
           AND sa.appointmentDate = :appointmentDate
           AND sa.slotStartTime = :slotStartTime
-          AND (
-              sa.status = 'BOOKED'
-              OR (sa.status = 'HOLD' AND (sa.holdExpiresAt IS NULL OR sa.holdExpiresAt > :now))
-          )
+          AND sa.status = 'BOOKED'
     """)
-    long countActiveOccupiedByDepartmentAndSlot(
+    long countBookedByDepartmentAndSlot(
             @Param("departmentId") Long departmentId,
             @Param("appointmentDate") LocalDate appointmentDate,
-            @Param("slotStartTime") LocalTime slotStartTime,
-            @Param("now") LocalDateTime now
+            @Param("slotStartTime") LocalTime slotStartTime
     );
 
     List<SlotAssignment> findByTicketNumber(String ticketNumber);
 
     List<SlotAssignment> findByAppointmentDateAndTicketNumber(LocalDate appointmentDate, String ticketNumber);
-
-    List<SlotAssignment> findByStatusAndHoldExpiresAtBefore(String status, LocalDateTime cutoff);
 
     List<SlotAssignment> findByDepartmentIdAndAppointmentDateAndSlotStartTime(
             Long departmentId, LocalDate appointmentDate, LocalTime slotStartTime

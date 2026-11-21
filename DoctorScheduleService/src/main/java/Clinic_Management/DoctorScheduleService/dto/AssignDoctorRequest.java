@@ -5,7 +5,6 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 @Data
@@ -27,7 +26,4 @@ public class AssignDoctorRequest {
     private String patientPhone;
     private String insuranceCode;
     private String chiefComplaint;
-
-    private Boolean holdOnly;
-    private LocalDateTime holdExpiresAt;
 }

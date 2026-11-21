@@ -3,7 +3,6 @@ package Clinic_Management.PatientIntakeService.service;
 import Clinic_Management.PatientIntakeService.clients.ScheduleServiceClient;
 import Clinic_Management.PatientIntakeService.dto.QueueTicketDetailResponse;
 import Clinic_Management.PatientIntakeService.entity.Patient;
-import Clinic_Management.PatientIntakeService.entity.PaymentStatus;
 import Clinic_Management.PatientIntakeService.entity.QueueStatus;
 import Clinic_Management.PatientIntakeService.entity.QueueTicket;
 import Clinic_Management.PatientIntakeService.repository.QueueTicketRepository;
@@ -33,17 +32,14 @@ public class QueueService {
 
     private final QueueTicketRepository queueTicketRepository;
     private final ScheduleServiceClient scheduleClient;
-    private final VietQrService vietQrService;
     private final RestClient aiGatewayClient;
 
     public QueueService(
             QueueTicketRepository queueTicketRepository,
             ScheduleServiceClient scheduleClient,
-            VietQrService vietQrService,
             @Value("${services.ai-gateway.base-url:http://localhost:8008}") String aiGatewayBaseUrl) {
         this.queueTicketRepository = queueTicketRepository;
         this.scheduleClient = scheduleClient;
-        this.vietQrService = vietQrService;
 
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout((int) Duration.ofSeconds(2).toMillis());
@@ -142,13 +138,10 @@ public class QueueService {
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phiếu khám có mã: " + ticketNumber));
 
         ticket.setStatus(status);
-        if (status == QueueStatus.CANCELLED && ticket.getPaymentStatus() == PaymentStatus.UNPAID) {
-            ticket.setPaymentStatus(PaymentStatus.EXPIRED);
-        }
         QueueTicket saved = queueTicketRepository.save(ticket);
         log.info("Cập nhật trạng thái phiếu {} sang {}", ticketNumber, status);
 
-        if (status == QueueStatus.CANCELLED || status == QueueStatus.EXPIRED) {
+        if (status == QueueStatus.CANCELLED) {
             scheduleClient.releaseSlot(ticket.getAppointmentDate(), ticket.getTicketNumber());
         }
 
@@ -204,7 +197,7 @@ public class QueueService {
     public QueueTicketDetailResponse getActiveTicketByPatientId(Long patientId) {
         List<QueueTicket> tickets = queueTicketRepository.findActiveTicketsByPatientId(
                 patientId,
-                List.of(QueueStatus.PENDING_PAYMENT, QueueStatus.WAITING, QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
+                List.of(QueueStatus.WAITING, QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
         );
 
         if (tickets.isEmpty()) {
@@ -213,18 +206,6 @@ public class QueueService {
 
         QueueTicket ticket = tickets.get(0);
         LocalDateTime nowInClinic = LocalDateTime.now(CLINIC_ZONE);
-
-        if (ticket.getStatus() == QueueStatus.PENDING_PAYMENT
-                && ticket.getPaymentExpiresAt() != null
-                && !ticket.getPaymentExpiresAt().isAfter(nowInClinic)) {
-            ticket.setStatus(QueueStatus.EXPIRED);
-            ticket.setPaymentStatus(PaymentStatus.EXPIRED);
-            queueTicketRepository.save(ticket);
-            scheduleClient.releaseSlot(ticket.getAppointmentDate(), ticket.getTicketNumber());
-            log.info("Phiếu giữ chỗ {} đã quá hạn thanh toán 15 phút, tự động chuyển sang EXPIRED",
-                    ticket.getTicketNumber());
-            return null;
-        }
 
         if (ticket.getAppointmentDate().isBefore(nowInClinic.toLocalDate())) {
             ticket.setStatus(QueueStatus.CANCELLED);
@@ -246,7 +227,7 @@ public class QueueService {
 
         List<QueueTicket> tickets = queueTicketRepository.findActiveTicketsByIdentifier(
                 identifier.trim(),
-                List.of(QueueStatus.PENDING_PAYMENT, QueueStatus.WAITING, QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
+                List.of(QueueStatus.WAITING, QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
         );
 
         if (tickets.isEmpty()) {
@@ -255,18 +236,6 @@ public class QueueService {
 
         QueueTicket ticket = tickets.get(0);
         LocalDateTime nowInClinic = LocalDateTime.now(CLINIC_ZONE);
-
-        if (ticket.getStatus() == QueueStatus.PENDING_PAYMENT
-                && ticket.getPaymentExpiresAt() != null
-                && !ticket.getPaymentExpiresAt().isAfter(nowInClinic)) {
-            ticket.setStatus(QueueStatus.EXPIRED);
-            ticket.setPaymentStatus(PaymentStatus.EXPIRED);
-            queueTicketRepository.save(ticket);
-            scheduleClient.releaseSlot(ticket.getAppointmentDate(), ticket.getTicketNumber());
-            log.info("Phiếu giữ chỗ {} đã quá hạn thanh toán 15 phút, tự động chuyển sang EXPIRED",
-                    ticket.getTicketNumber());
-            return null;
-        }
 
         if (ticket.getAppointmentDate().isBefore(nowInClinic.toLocalDate())) {
             ticket.setStatus(QueueStatus.CANCELLED);
@@ -385,15 +354,6 @@ public class QueueService {
                 .flagReason(ticket.getFlagReason())
                 .confirmedIcd10Code(ticket.getConfirmedIcd10Code())
                 .confirmedDiseaseName(ticket.getConfirmedDiseaseName())
-                .paymentStatus(ticket.getPaymentStatus())
-                .paymentCode(ticket.getPaymentCode())
-                .depositAmount(ticket.getDepositAmount())
-                .paidAmount(ticket.getPaidAmount())
-                .paymentExpiresAt(ticket.getPaymentExpiresAt())
-                .paidAt(ticket.getPaidAt())
-                .externalTxId(ticket.getExternalTxId())
-                .adminNote(ticket.getAdminNote())
-                .qrUrl(vietQrService.resolveQrUrlForTicket(ticket))
                 .build();
     }
 }
