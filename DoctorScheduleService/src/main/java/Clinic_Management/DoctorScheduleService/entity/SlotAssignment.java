@@ -1,10 +1,10 @@
 package Clinic_Management.DoctorScheduleService.entity;
 
-
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 @Entity
@@ -20,7 +20,7 @@ public class SlotAssignment {
     private Long id;
 
     @Column(nullable = false)
-    private String ticketNumber; // VD: #A-102
+    private String ticketNumber;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "doctor_id", nullable = false)
@@ -33,7 +33,7 @@ public class SlotAssignment {
     private LocalDate appointmentDate;
 
     @Column(nullable = false)
-    private LocalTime slotStartTime; // Start time of the slot
+    private LocalTime slotStartTime;
 
     @Column(name = "patient_name")
     private String patientName;
@@ -49,7 +49,8 @@ public class SlotAssignment {
 
     @Column(name = "status")
     @Builder.Default
-    private String status = "BOOKED";
+    private String status = "BOOKED"; // BOOKED | TEMPORARY | CANCELLED
 
-
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
 }

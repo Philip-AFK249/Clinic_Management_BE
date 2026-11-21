@@ -2,6 +2,7 @@ package Clinic_Management.PatientIntakeService.service;
 
 import Clinic_Management.PatientIntakeService.clients.ScheduleServiceClient;
 import Clinic_Management.PatientIntakeService.dto.QueueTicketDetailResponse;
+import Clinic_Management.PatientIntakeService.entity.IntakeSource;
 import Clinic_Management.PatientIntakeService.entity.Patient;
 import Clinic_Management.PatientIntakeService.entity.QueueStatus;
 import Clinic_Management.PatientIntakeService.entity.QueueTicket;
@@ -138,8 +139,14 @@ public class QueueService {
         QueueTicket saved = queueTicketRepository.save(ticket);
         log.info("Cập nhật trạng thái phiếu {} sang {}", ticketNumber, status);
 
-        if (status == QueueStatus.CANCELLED) {
-            scheduleClient.releaseSlot(ticketNumber);
+        if (status == QueueStatus.CANCELLED
+                && ticket.getIntakeSource() == Clinic_Management.PatientIntakeService.entity.IntakeSource.ONLINE_BOOKING
+                && (ticket.getStatus() == QueueStatus.WAITING
+                || ticket.getStatus() == QueueStatus.CALLED
+                || ticket.getStatus() == QueueStatus.IN_CONSULTATION)) {
+            throw new IllegalStateException(
+                    "Vé đặt lịch trực tuyến đã được xác nhận chính thức lên hệ thống. Theo quy định phòng khám, không cho phép hủy lịch và không hoàn phí."
+            );
         }
 
         return saved;
@@ -190,11 +197,18 @@ public class QueueService {
         );
     }
 
+
+
     @Transactional
     public QueueTicketDetailResponse getActiveTicketByPatientId(Long patientId) {
         List<QueueTicket> tickets = queueTicketRepository.findActiveTicketsByPatientId(
                 patientId,
-                List.of(QueueStatus.WAITING, QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
+                List.of(
+                        QueueStatus.PENDING_CONFIRMATION,
+                        QueueStatus.WAITING,
+                        QueueStatus.CALLED,
+                        QueueStatus.IN_CONSULTATION
+                )
         );
 
         if (tickets.isEmpty()) {
@@ -203,8 +217,23 @@ public class QueueService {
 
         QueueTicket ticket = tickets.get(0);
 
+        // Nếu vé online tạm thời đã quá hạn 3 phút -> tự động hủy và nhả slot
+        if (ticket.getStatus() == QueueStatus.PENDING_CONFIRMATION
+                && ticket.getExpiresAt() != null
+                && !ticket.getExpiresAt().isAfter(LocalDateTime.now())) {
+            ticket.setStatus(QueueStatus.CANCELLED);
+            ticket.setExpiresAt(null);
+            ticket.setRejectionReason("Quá thời hạn 3 phút chưa được xác thực, hệ thống tự động hủy.");
+            queueTicketRepository.save(ticket);
+            scheduleClient.releaseSlot(ticket.getTicketNumber());
+            log.info("Vé tạm {} của BN ID {} đã quá hạn 3 phút, tự động chuyển sang CANCELLED",
+                    ticket.getTicketNumber(), patientId);
+            return null;
+        }
+
         if (ticket.getAppointmentDate().isBefore(LocalDate.now())) {
             ticket.setStatus(QueueStatus.CANCELLED);
+            ticket.setExpiresAt(null);
             queueTicketRepository.save(ticket);
             scheduleClient.releaseSlot(ticket.getTicketNumber());
             log.info("Phiếu {} ngày {} đã quá hạn so với hôm nay, tự động chuyển sang CANCELLED",
@@ -223,7 +252,12 @@ public class QueueService {
 
         List<QueueTicket> tickets = queueTicketRepository.findActiveTicketsByIdentifier(
                 identifier.trim(),
-                List.of(QueueStatus.WAITING, QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
+                List.of(
+                        QueueStatus.PENDING_CONFIRMATION,
+                        QueueStatus.WAITING,
+                        QueueStatus.CALLED,
+                        QueueStatus.IN_CONSULTATION
+                )
         );
 
         if (tickets.isEmpty()) {
@@ -232,8 +266,23 @@ public class QueueService {
 
         QueueTicket ticket = tickets.get(0);
 
+        // Nếu vé online tạm thời đã quá hạn 3 phút -> tự động hủy và nhả slot
+        if (ticket.getStatus() == QueueStatus.PENDING_CONFIRMATION
+                && ticket.getExpiresAt() != null
+                && !ticket.getExpiresAt().isAfter(LocalDateTime.now())) {
+            ticket.setStatus(QueueStatus.CANCELLED);
+            ticket.setExpiresAt(null);
+            ticket.setRejectionReason("Quá thời hạn 3 phút chưa được xác thực, hệ thống tự động hủy.");
+            queueTicketRepository.save(ticket);
+            scheduleClient.releaseSlot(ticket.getTicketNumber());
+            log.info("Vé tạm {} (định danh {}) đã quá hạn 3 phút, tự động chuyển sang CANCELLED",
+                    ticket.getTicketNumber(), identifier);
+            return null;
+        }
+
         if (ticket.getAppointmentDate().isBefore(LocalDate.now())) {
             ticket.setStatus(QueueStatus.CANCELLED);
+            ticket.setExpiresAt(null);
             queueTicketRepository.save(ticket);
             scheduleClient.releaseSlot(ticket.getTicketNumber());
             log.info("Phiếu {} ngày {} đã quá hạn so với hôm nay, tự động chuyển sang CANCELLED",
@@ -305,6 +354,96 @@ public class QueueService {
         );
     }
 
+    @Transactional
+    public List<QueueTicketDetailResponse> getPendingOnlineTickets() {
+        expireOverdueTemporaryTickets();
+        return queueTicketRepository
+                .findByStatusWithPatientOrderByCheckInTimeAsc(QueueStatus.PENDING_CONFIRMATION)
+                .stream()
+                .map(t -> mapToDetailResponse(t, t.getPatient()))
+                .toList();
+    }
+
+    @Transactional
+    public QueueTicketDetailResponse approveOnlineTicket(String ticketNumber, String adminName) {
+        QueueTicket ticket = queueTicketRepository
+                .findByAppointmentDateAndTicketNumber(LocalDate.now(), ticketNumber)
+                .or(() -> queueTicketRepository.findTopByTicketNumberOrderByAppointmentDateDesc(ticketNumber))
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy vé khám có mã: " + ticketNumber));
+
+        if (ticket.getStatus() != QueueStatus.PENDING_CONFIRMATION) {
+            throw new IllegalStateException("Chỉ có thể xác thực các vé online đang ở trạng thái tạm thời (PENDING_CONFIRMATION).");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (ticket.getExpiresAt() != null && !ticket.getExpiresAt().isAfter(now)) {
+            ticket.setStatus(QueueStatus.CANCELLED);
+            ticket.setExpiresAt(null);
+            ticket.setRejectionReason("Quá thời hạn 3 phút chưa được xác thực, hệ thống đã tự động hủy.");
+            queueTicketRepository.save(ticket);
+            scheduleClient.releaseSlot(ticket.getTicketNumber());
+            throw new IllegalStateException("Vé tạm thời này đã quá hạn 3 phút và đã bị hệ thống tự động hủy.");
+        }
+
+        // Xác nhận chính thức suất khám bên DoctorScheduleService (TEMPORARY -> BOOKED)
+        scheduleClient.confirmSlot(ticket.getTicketNumber());
+
+        ticket.setStatus(QueueStatus.WAITING);
+        ticket.setExpiresAt(null);
+        ticket.setConfirmedAt(now);
+        ticket.setConfirmedBy((adminName != null && !adminName.isBlank()) ? adminName.trim() : "Quản trị viên");
+        ticket.setIsReceiptVerified(true);
+
+        QueueTicket saved = queueTicketRepository.save(ticket);
+        log.info("Admin {} đã xác thực vé online {} thành VÉ CHÍNH THỨC.", saved.getConfirmedBy(), ticketNumber);
+        return mapToDetailResponse(saved, saved.getPatient());
+    }
+
+    @Transactional
+    public QueueTicketDetailResponse rejectOnlineTicket(String ticketNumber, String reason, String adminName) {
+        QueueTicket ticket = queueTicketRepository
+                .findByAppointmentDateAndTicketNumber(LocalDate.now(), ticketNumber)
+                .or(() -> queueTicketRepository.findTopByTicketNumberOrderByAppointmentDateDesc(ticketNumber))
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy vé khám có mã: " + ticketNumber));
+
+        if (ticket.getStatus() != QueueStatus.PENDING_CONFIRMATION) {
+            throw new IllegalStateException("Vé này không còn ở trạng thái chờ xác thực.");
+        }
+
+        ticket.setStatus(QueueStatus.REJECTED);
+        ticket.setExpiresAt(null);
+        ticket.setConfirmedBy((adminName != null && !adminName.isBlank()) ? adminName.trim() : "Quản trị viên");
+        ticket.setRejectionReason((reason != null && !reason.isBlank())
+                ? reason.trim()
+                : "Quản trị viên từ chối xác thực vé online.");
+
+        QueueTicket saved = queueTicketRepository.save(ticket);
+        scheduleClient.releaseSlot(ticket.getTicketNumber());
+
+        log.info("Admin {} đã TỪ CHỐI vé online {} và giải phóng suất khám.", saved.getConfirmedBy(), ticketNumber);
+        return mapToDetailResponse(saved, saved.getPatient());
+    }
+
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 10000)
+    @Transactional
+    public void expireOverdueTemporaryTickets() {
+        List<QueueTicket> expiredTickets = queueTicketRepository.findExpiredTemporaryTickets(
+                QueueStatus.PENDING_CONFIRMATION,
+                LocalDateTime.now()
+        );
+        if (expiredTickets.isEmpty()) return;
+
+        for (QueueTicket ticket : expiredTickets) {
+            ticket.setStatus(QueueStatus.CANCELLED);
+            ticket.setExpiresAt(null);
+            ticket.setRejectionReason("Quá thời hạn 3 phút chưa được thanh toán/xác thực, hệ thống tự động hủy để nhường suất khám.");
+            queueTicketRepository.save(ticket);
+            scheduleClient.releaseSlot(ticket.getTicketNumber());
+            log.info("Tự động hủy vé tạm quá hạn 3 phút: {} (BN: {})",
+                    ticket.getTicketNumber(), ticket.getPatient().getFullName());
+        }
+    }
+
     private QueueTicketDetailResponse mapToDetailResponse(QueueTicket ticket, Patient patient) {
         return QueueTicketDetailResponse.builder()
                 .ticketNumber(ticket.getTicketNumber())
@@ -349,6 +488,12 @@ public class QueueService {
                 .flagReason(ticket.getFlagReason())
                 .confirmedIcd10Code(ticket.getConfirmedIcd10Code())
                 .confirmedDiseaseName(ticket.getConfirmedDiseaseName())
+                .expiresAt(ticket.getExpiresAt())
+                .confirmedAt(ticket.getConfirmedAt())
+                .confirmedBy(ticket.getConfirmedBy())
+                .rejectionReason(ticket.getRejectionReason())
+                .canCancel(ticket.getIntakeSource() != IntakeSource.ONLINE_BOOKING
+                        && ticket.getStatus() == QueueStatus.WAITING)
                 .build();
     }
 }

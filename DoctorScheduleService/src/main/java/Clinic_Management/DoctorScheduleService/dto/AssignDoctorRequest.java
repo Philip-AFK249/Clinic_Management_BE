@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 @Data
@@ -20,9 +21,13 @@ public class AssignDoctorRequest {
 
     @NotBlank(message = "Mã số phiếu không được để trống")
     private String ticketNumber;
+
     private Long preferredDoctorId;
     private String patientName;
     private String patientPhone;
     private String insuranceCode;
     private String chiefComplaint;
+
+    private Boolean temporary;
+    private LocalDateTime expiresAt;
 }

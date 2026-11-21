@@ -39,10 +39,7 @@ public class DataInitializer implements CommandLineRunner {
                         .active(true)
                         .build(),
 
-                // ============================================================
-                // user_id = 2 -> 10: 9 Bác sĩ (Khớp doctors.id 1 -> 9)
-                // ============================================================
-                // ID 2 -> Doctor ID 1 (Khoa 1 - Nội tổng quát & Tim mạch)
+
                 User.builder()
                         .email("tuan.tran@smartclinic.vn")
                         .password(encodedPassword)

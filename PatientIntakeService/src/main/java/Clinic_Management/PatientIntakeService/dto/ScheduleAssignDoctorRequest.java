@@ -3,6 +3,7 @@ package Clinic_Management.PatientIntakeService.dto;
 import lombok.Builder;
 import lombok.Data;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 @Data
@@ -17,4 +18,6 @@ public class ScheduleAssignDoctorRequest {
     private String patientPhone;
     private String insuranceCode;
     private String chiefComplaint;
+    private Boolean temporary;
+    private LocalDateTime expiresAt;
 }

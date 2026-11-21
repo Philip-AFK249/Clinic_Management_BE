@@ -105,4 +105,11 @@ public class DoctorScheduleController {
         scheduleService.deleteShift(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PatchMapping("/assignments/{ticketNumber}/confirm")
+    @Operation(summary = "Xác nhận chuyển suất giữ chỗ tạm thời sang chính thức (BOOKED)")
+    public ResponseEntity<Void> confirmSlot(@PathVariable String ticketNumber) {
+        scheduleService.confirmSlotAssignment(ticketNumber);
+        return ResponseEntity.noContent().build();
+    }
 }

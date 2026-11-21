@@ -218,4 +218,38 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
             @Param("fromDate") LocalDate fromDate,
             @Param("statuses") List<QueueStatus> statuses
     );
+
+    @Query("""
+        SELECT q FROM QueueTicket q
+        JOIN FETCH q.patient
+        WHERE q.status = :status
+        ORDER BY q.checkInTime ASC
+    """)
+    List<QueueTicket> findByStatusWithPatientOrderByCheckInTimeAsc(
+            @Param("status") QueueStatus status
+    );
+
+    @Query("""
+        SELECT q FROM QueueTicket q
+        WHERE q.status = :status
+          AND q.expiresAt IS NOT NULL
+          AND q.expiresAt <= :now
+    """)
+    List<QueueTicket> findExpiredTemporaryTickets(
+            @Param("status") QueueStatus status,
+            @Param("now") java.time.LocalDateTime now
+    );
+
+    @Query("""
+        SELECT q FROM QueueTicket q
+        WHERE q.patient.id = :patientId
+          AND q.status = :status
+          AND q.expiresAt IS NOT NULL
+          AND q.expiresAt <= :now
+    """)
+    List<QueueTicket> findExpiredTemporaryTicketsForPatient(
+            @Param("patientId") Long patientId,
+            @Param("status") QueueStatus status,
+            @Param("now") java.time.LocalDateTime now
+    );
 }

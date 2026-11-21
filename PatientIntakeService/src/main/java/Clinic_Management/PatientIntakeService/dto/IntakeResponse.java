@@ -33,4 +33,7 @@ public class IntakeResponse {
     private String triageFlagId;
     private Boolean isOutOfDataset;
     private String flagReason;
+    private Clinic_Management.PatientIntakeService.entity.QueueStatus status;
+    private LocalDateTime expiresAt;
+    private Boolean isTemporary;
 }

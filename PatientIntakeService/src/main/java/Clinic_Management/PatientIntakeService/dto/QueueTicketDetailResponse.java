@@ -64,4 +64,9 @@ public class QueueTicketDetailResponse {
     private String flagReason;
     private String confirmedIcd10Code;
     private String confirmedDiseaseName;
+    private LocalDateTime expiresAt;
+    private LocalDateTime confirmedAt;
+    private String confirmedBy;
+    private String rejectionReason;
+    private Boolean canCancel;
 }

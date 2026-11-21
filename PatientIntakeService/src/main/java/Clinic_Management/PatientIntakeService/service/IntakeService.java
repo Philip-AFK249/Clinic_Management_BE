@@ -2,6 +2,7 @@ package Clinic_Management.PatientIntakeService.service;
 
 import Clinic_Management.PatientIntakeService.clients.ScheduleServiceClient;
 import Clinic_Management.PatientIntakeService.dto.*;
+import Clinic_Management.PatientIntakeService.entity.IntakeSource;
 import Clinic_Management.PatientIntakeService.entity.Patient;
 import Clinic_Management.PatientIntakeService.entity.QueueStatus;
 import Clinic_Management.PatientIntakeService.entity.QueueTicket;
@@ -18,13 +19,14 @@ import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
 @Service
 @Slf4j
 public class IntakeService {
-
+    private static final long TEMPORARY_TICKET_TTL_MINUTES = 3L;
     private final PatientRepository patientRepository;
     private final QueueTicketRepository queueTicketRepository;
     private final ScheduleServiceClient scheduleClient;
@@ -160,7 +162,22 @@ public class IntakeService {
 
         Patient patient = resolvePatient(request);
 
+        // Dọn dẹp vé tạm của chính bệnh nhân này nếu đã quá hạn 3 phút trước khi kiểm tra trùng lịch
+        List<QueueTicket> staleTempTickets = queueTicketRepository.findExpiredTemporaryTicketsForPatient(
+                patient.getId(),
+                QueueStatus.PENDING_CONFIRMATION,
+                LocalDateTime.now()
+        );
+        for (QueueTicket stale : staleTempTickets) {
+            stale.setStatus(QueueStatus.CANCELLED);
+            stale.setExpiresAt(null);
+            stale.setRejectionReason("Quá thời hạn 3 phút chưa được xác thực, hệ thống tự động hủy vé tạm.");
+            queueTicketRepository.save(stale);
+            scheduleClient.releaseSlot(stale.getTicketNumber());
+        }
+
         List<QueueStatus> activeStatuses = List.of(
+                QueueStatus.PENDING_CONFIRMATION,
                 QueueStatus.WAITING,
                 QueueStatus.CALLED,
                 QueueStatus.IN_CONSULTATION
@@ -172,7 +189,7 @@ public class IntakeService {
         );
         if (hasActiveBooking) {
             throw new IllegalStateException(String.format(
-                    "Bệnh nhân '%s' đã có phiếu khám đang chờ hoặc đang khám vào ngày %s. Vui lòng hoàn tất hoặc hủy phiếu hiện tại trước khi tạo lịch mới.",
+                    "Bệnh nhân '%s' đã có phiếu khám đang chờ xác thực hoặc đang khám vào ngày %s. Vui lòng hoàn tất hoặc chờ xử lý phiếu hiện tại.",
                     patient.getFullName(),
                     request.getAppointmentDate()
             ));
@@ -193,6 +210,15 @@ public class IntakeService {
                     "Khung giờ khám này trong hôm nay đã kết thúc. Vui lòng chọn khung giờ chiều còn trống hoặc chuyển sang ngày mai."
             );
         }
+
+        // Đặt lịch online -> tạo vé tạm (chờ duyệt 3 phút); tại quầy/Kiosk -> vào thẳng hàng đợi chính thức
+        boolean isOnlineBooking = request.getIntakeSource() == IntakeSource.ONLINE_BOOKING;
+        LocalDateTime temporaryExpiresAt = isOnlineBooking
+                ? LocalDateTime.now().plusMinutes(TEMPORARY_TICKET_TTL_MINUTES)
+                : null;
+        QueueStatus initialStatus = isOnlineBooking
+                ? QueueStatus.PENDING_CONFIRMATION
+                : QueueStatus.WAITING;
 
         String cleanedFlagId = (request.getTriageFlagId() != null && !request.getTriageFlagId().isBlank())
                 ? request.getTriageFlagId().trim()
@@ -219,6 +245,8 @@ public class IntakeService {
                                 .patientPhone(patient.getPhone())
                                 .insuranceCode(patient.getInsuranceCode())
                                 .chiefComplaint(request.getChiefComplaint())
+                                .temporary(isOnlineBooking)
+                                .expiresAt(temporaryExpiresAt)
                                 .build()
                 );
 
@@ -234,7 +262,8 @@ public class IntakeService {
                         .slotStartTime(request.getSlotStartTime())
                         .priorityLevel(request.getPriorityLevel())
                         .intakeSource(request.getIntakeSource())
-                        .status(QueueStatus.WAITING)
+                        .status(initialStatus)
+                        .expiresAt(temporaryExpiresAt)
                         .chiefComplaint(request.getChiefComplaint())
                         .secondaryDepartmentId(request.getSecondaryDepartmentId())
                         .secondaryDepartmentName(request.getSecondaryDepartmentName())
@@ -266,8 +295,8 @@ public class IntakeService {
             linkFlagToTicket(cleanedFlagId, savedTicket.getTicketNumber(), patient.getFullName());
         }
 
-        log.info("Tiếp nhận thành công BN: {}, Mã phiếu: {}, Phòng khám: {}",
-                patient.getFullName(), savedTicket.getTicketNumber(), savedTicket.getRoomNumber());
+        log.info("Tiếp nhận thành công BN: {}, Mã phiếu: {}, Trạng thái: {}, Phòng khám: {}",
+                patient.getFullName(), savedTicket.getTicketNumber(), savedTicket.getStatus(), savedTicket.getRoomNumber());
 
         return IntakeResponse.builder()
                 .ticketNumber(savedTicket.getTicketNumber())
@@ -283,7 +312,12 @@ public class IntakeService {
                 .slotStartTime(savedTicket.getSlotStartTime())
                 .priorityLevel(savedTicket.getPriorityLevel())
                 .checkInTime(savedTicket.getCheckInTime())
-                .message("Tiếp nhận thành công. Vui lòng di chuyển đến phòng khám được chỉ định.")
+                .status(savedTicket.getStatus())
+                .expiresAt(savedTicket.getExpiresAt())
+                .isTemporary(isOnlineBooking)
+                .message(isOnlineBooking
+                        ? "Đã tạo vé online tạm thời. Vui lòng chờ Quản trị viên xác thực trong vòng 3 phút."
+                        : "Tiếp nhận thành công. Vui lòng di chuyển đến phòng khám được chỉ định.")
                 .secondaryDepartmentId(savedTicket.getSecondaryDepartmentId())
                 .secondaryDepartmentName(savedTicket.getSecondaryDepartmentName())
                 .multiSpecialtyNote(savedTicket.getMultiSpecialtyNote())
@@ -295,6 +329,7 @@ public class IntakeService {
                 .flagReason(savedTicket.getFlagReason())
                 .build();
     }
+
 
     @Transactional
     public QueueTicket updateTicketStatus(String ticketNumber, QueueStatus status) {

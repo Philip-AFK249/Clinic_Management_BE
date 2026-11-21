@@ -61,4 +61,17 @@ public class ScheduleServiceClient {
             System.err.println("Không thể giải phóng slot tại DoctorScheduleService cho phiếu " + ticketNumber + ": " + ex.getMessage());
         }
     }
+
+    public void confirmSlot(String ticketNumber) {
+        try {
+            restClient.patch()
+                    .uri("/assignments/{ticketNumber}/confirm", ticketNumber)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (org.springframework.web.client.HttpClientErrorException | org.springframework.web.client.HttpServerErrorException ex) {
+            throw new IllegalStateException("Không thể xác nhận suất khám tại DoctorScheduleService: " + ex.getResponseBodyAsString());
+        } catch (Exception ex) {
+            throw new IllegalStateException("Không thể kết nối đến DoctorScheduleService (:8081): " + ex.getMessage());
+        }
+    }
 }

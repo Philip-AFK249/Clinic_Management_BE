@@ -163,4 +163,38 @@ public class QueueController {
                 payload != null ? payload.doctorName() : null
         ));
     }
+
+    public record TicketReviewPayload(
+            String adminName,
+            String reason
+    ) {}
+
+    @GetMapping("/online-tickets/pending")
+    @Operation(summary = "Admin lấy danh sách vé online tạm thời đang chờ xác thực")
+    public ResponseEntity<List<QueueTicketDetailResponse>> getPendingOnlineTickets() {
+        return ResponseEntity.ok(queueService.getPendingOnlineTickets());
+    }
+
+    @PatchMapping("/tickets/{ticketNumber}/approve")
+    @Operation(summary = "Admin chấp nhận (Accept) vé online tạm thời -> Vé online chính thức")
+    public ResponseEntity<QueueTicketDetailResponse> approveOnlineTicket(
+            @PathVariable String ticketNumber,
+            @RequestBody(required = false) TicketReviewPayload payload) {
+        return ResponseEntity.ok(queueService.approveOnlineTicket(
+                ticketNumber,
+                payload != null ? payload.adminName() : null
+        ));
+    }
+
+    @PatchMapping("/tickets/{ticketNumber}/reject")
+    @Operation(summary = "Admin từ chối (Reject) vé online tạm thời và giải phóng suất khám")
+    public ResponseEntity<QueueTicketDetailResponse> rejectOnlineTicket(
+            @PathVariable String ticketNumber,
+            @RequestBody(required = false) TicketReviewPayload payload) {
+        return ResponseEntity.ok(queueService.rejectOnlineTicket(
+                ticketNumber,
+                payload != null ? payload.reason() : null,
+                payload != null ? payload.adminName() : null
+        ));
+    }
 }
