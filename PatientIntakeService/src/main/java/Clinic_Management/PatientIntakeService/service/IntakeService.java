@@ -2,9 +2,7 @@ package Clinic_Management.PatientIntakeService.service;
 
 import Clinic_Management.PatientIntakeService.clients.ScheduleServiceClient;
 import Clinic_Management.PatientIntakeService.dto.*;
-import Clinic_Management.PatientIntakeService.entity.Patient;
-import Clinic_Management.PatientIntakeService.entity.QueueStatus;
-import Clinic_Management.PatientIntakeService.entity.QueueTicket;
+import Clinic_Management.PatientIntakeService.entity.*;
 import Clinic_Management.PatientIntakeService.repository.PatientRepository;
 import Clinic_Management.PatientIntakeService.repository.QueueTicketRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -16,8 +14,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,21 +28,25 @@ import java.util.Map;
 @Slf4j
 public class IntakeService {
 
+    private static final ZoneId CLINIC_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final int MAX_TICKET_GEN_RETRIES = 3;
+
     private final PatientRepository patientRepository;
     private final QueueTicketRepository queueTicketRepository;
     private final ScheduleServiceClient scheduleClient;
+    private final VietQrService vietQrService;
     private final RestClient aiGatewayClient;
-
-    private static final int MAX_TICKET_GEN_RETRIES = 3;
 
     public IntakeService(
             PatientRepository patientRepository,
             QueueTicketRepository queueTicketRepository,
             ScheduleServiceClient scheduleClient,
+            VietQrService vietQrService,
             @Value("${services.ai-gateway.base-url:http://localhost:8008}") String aiGatewayBaseUrl) {
         this.patientRepository = patientRepository;
         this.queueTicketRepository = queueTicketRepository;
         this.scheduleClient = scheduleClient;
+        this.vietQrService = vietQrService;
 
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout((int) Duration.ofSeconds(2).toMillis());
@@ -129,8 +135,6 @@ public class IntakeService {
             Map<String, Object> body = new HashMap<>();
             body.put("ticket_number", ticketNumber);
             body.put("patient_name", patientName != null ? patientName : "");
-            // Keep the AI gateway's Active Learning row in sync with the final
-            // reception decision (including a corrected OOD reason).
             body.put("flag_reason", (flagReason == null || flagReason.isBlank())
                     ? (isOutOfDataset ? "NEW_SYMPTOM_PATTERN" : "")
                     : flagReason.trim());
@@ -166,8 +170,29 @@ public class IntakeService {
         }
 
         Patient patient = resolvePatient(request);
+        LocalDateTime nowInClinic = LocalDateTime.now(CLINIC_ZONE);
+        LocalDate todayInClinic = nowInClinic.toLocalDate();
+        LocalTime timeInClinic = nowInClinic.toLocalTime();
 
+        // Giải phóng ngay các phiếu PENDING_PAYMENT của chính bệnh nhân này nếu đã quá hạn 15 phút
+        List<QueueTicket> pendingTickets = queueTicketRepository.findActiveTicketsByPatientId(
+                patient.getId(),
+                List.of(QueueStatus.PENDING_PAYMENT)
+        );
+        for (QueueTicket pending : pendingTickets) {
+            if (pending.getPaymentExpiresAt() != null && !pending.getPaymentExpiresAt().isAfter(nowInClinic)) {
+                pending.setStatus(QueueStatus.EXPIRED);
+                pending.setPaymentStatus(PaymentStatus.EXPIRED);
+                queueTicketRepository.save(pending);
+                scheduleClient.releaseSlot(pending.getAppointmentDate(), pending.getTicketNumber());
+                log.info("Tự động giải phóng phiếu giữ chỗ quá hạn {} của BN {}",
+                        pending.getTicketNumber(), patient.getFullName());
+            }
+        }
+
+        // Chặn tạo trùng nếu đang có phiếu PENDING_PAYMENT còn hạn, WAITING, CALLED hoặc IN_CONSULTATION trong ngày
         List<QueueStatus> activeStatuses = List.of(
+                QueueStatus.PENDING_PAYMENT,
                 QueueStatus.WAITING,
                 QueueStatus.CALLED,
                 QueueStatus.IN_CONSULTATION
@@ -179,15 +204,11 @@ public class IntakeService {
         );
         if (hasActiveBooking) {
             throw new IllegalStateException(String.format(
-                    "Bệnh nhân '%s' đã có phiếu khám đang chờ hoặc đang khám vào ngày %s. Vui lòng hoàn tất hoặc hủy phiếu hiện tại trước khi tạo lịch mới.",
+                    "Bệnh nhân '%s' đã có lịch giữ chỗ chờ thanh toán hoặc phiếu khám đang hoạt động vào ngày %s. Vui lòng thanh toán phiếu hiện tại hoặc hủy trước khi đặt lịch mới.",
                     patient.getFullName(),
                     request.getAppointmentDate()
             ));
         }
-
-        java.time.ZoneId clinicZone = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
-        java.time.LocalDate todayInClinic = java.time.LocalDate.now(clinicZone);
-        java.time.LocalTime nowInClinic = java.time.LocalTime.now(clinicZone);
 
         if (request.getAppointmentDate().isBefore(todayInClinic)) {
             throw new IllegalArgumentException(
@@ -195,7 +216,7 @@ public class IntakeService {
             );
         }
         if (request.getAppointmentDate().isEqual(todayInClinic)
-                && !request.getSlotStartTime().plusHours(1).isAfter(nowInClinic)) {
+                && !request.getSlotStartTime().plusHours(1).isAfter(timeInClinic)) {
             throw new IllegalArgumentException(
                     "Khung giờ khám này trong hôm nay đã kết thúc. Vui lòng chọn khung giờ chiều còn trống hoặc chuyển sang ngày mai."
             );
@@ -206,6 +227,17 @@ public class IntakeService {
                 : null;
         boolean isOutOfDataset = Boolean.TRUE.equals(request.getIsOutOfDataset()) || cleanedFlagId != null;
 
+        // Phân luồng: chỉ ONLINE_BOOKING mới giữ chỗ tạm 15 phút & tạo mã QR cọc
+        boolean isOnlineBooking = request.getIntakeSource() == IntakeSource.ONLINE_BOOKING;
+        QueueStatus initialQueueStatus = isOnlineBooking ? QueueStatus.PENDING_PAYMENT : QueueStatus.WAITING;
+        PaymentStatus initialPaymentStatus = isOnlineBooking ? PaymentStatus.UNPAID : PaymentStatus.PAID;
+        String paymentCode = isOnlineBooking ? vietQrService.generateUniquePaymentCode() : null;
+        BigDecimal depositAmount = isOnlineBooking ? vietQrService.getDefaultDepositAmount() : null;
+        LocalDateTime paymentExpiresAt = isOnlineBooking
+                ? nowInClinic.plusMinutes(vietQrService.getHoldMinutes())
+                : null;
+        LocalDateTime paidAt = isOnlineBooking ? null : nowInClinic;
+
         QueueTicket savedTicket = null;
         ScheduleAssignDoctorResponse doctorAssignment = null;
         int attempts = 0;
@@ -213,6 +245,7 @@ public class IntakeService {
         while (attempts < MAX_TICKET_GEN_RETRIES) {
             attempts++;
             String ticketNumber = generateTicketNumber(request.getDepartmentId(), request.getAppointmentDate(), attempts - 1);
+            boolean slotAssigned = false;
 
             try {
                 doctorAssignment = scheduleClient.assignDoctor(
@@ -226,8 +259,11 @@ public class IntakeService {
                                 .patientPhone(patient.getPhone())
                                 .insuranceCode(patient.getInsuranceCode())
                                 .chiefComplaint(request.getChiefComplaint())
+                                .holdOnly(isOnlineBooking)
+                                .holdExpiresAt(paymentExpiresAt)
                                 .build()
                 );
+                slotAssigned = true;
 
                 QueueTicket ticket = QueueTicket.builder()
                         .ticketNumber(ticketNumber)
@@ -241,7 +277,13 @@ public class IntakeService {
                         .slotStartTime(request.getSlotStartTime())
                         .priorityLevel(request.getPriorityLevel())
                         .intakeSource(request.getIntakeSource())
-                        .status(QueueStatus.WAITING)
+                        .status(initialQueueStatus)
+                        .paymentStatus(initialPaymentStatus)
+                        .paymentCode(paymentCode)
+                        .depositAmount(depositAmount)
+                        .paidAmount(isOnlineBooking ? null : BigDecimal.ZERO)
+                        .paymentExpiresAt(paymentExpiresAt)
+                        .paidAt(paidAt)
                         .chiefComplaint(request.getChiefComplaint())
                         .secondaryDepartmentId(request.getSecondaryDepartmentId())
                         .secondaryDepartmentName(request.getSecondaryDepartmentName())
@@ -258,12 +300,18 @@ public class IntakeService {
                 break;
 
             } catch (DataIntegrityViolationException ex) {
+                if (slotAssigned) {
+                    scheduleClient.releaseSlot(request.getAppointmentDate(), ticketNumber);
+                }
                 log.warn("Đụng độ mã số vé {} tại khoa {} ngày {}. Đang thử lại lần {}...",
                         ticketNumber, request.getDepartmentId(), request.getAppointmentDate(), attempts);
                 if (attempts >= MAX_TICKET_GEN_RETRIES) {
                     throw new IllegalStateException("Hệ thống tiếp đón đang quá tải lượt cấp số. Vui lòng thử lại sau giây lát.");
                 }
             } catch (Exception ex) {
+                if (slotAssigned) {
+                    scheduleClient.releaseSlot(request.getAppointmentDate(), ticketNumber);
+                }
                 log.error("Lỗi trong quá trình tiếp nhận bệnh nhân {}: {}", patient.getFullName(), ex.getMessage());
                 throw ex;
             }
@@ -279,8 +327,13 @@ public class IntakeService {
             );
         }
 
-        log.info("Tiếp nhận thành công BN: {}, Mã phiếu: {}, Phòng khám: {}",
-                patient.getFullName(), savedTicket.getTicketNumber(), savedTicket.getRoomNumber());
+        String qrUrl = isOnlineBooking
+                ? vietQrService.buildQrImageUrl(savedTicket.getPaymentCode(), savedTicket.getDepositAmount())
+                : null;
+
+        log.info("Tiếp nhận thành công BN: {}, Mã phiếu: {}, Kênh: {}, Trạng thái: {}, Mã cọc: {}",
+                patient.getFullName(), savedTicket.getTicketNumber(), request.getIntakeSource(),
+                savedTicket.getStatus(), savedTicket.getPaymentCode());
 
         return IntakeResponse.builder()
                 .ticketNumber(savedTicket.getTicketNumber())
@@ -296,7 +349,9 @@ public class IntakeService {
                 .slotStartTime(savedTicket.getSlotStartTime())
                 .priorityLevel(savedTicket.getPriorityLevel())
                 .checkInTime(savedTicket.getCheckInTime())
-                .message("Tiếp nhận thành công. Vui lòng di chuyển đến phòng khám được chỉ định.")
+                .message(isOnlineBooking
+                        ? "Đã giữ chỗ tạm trong 15 phút. Vui lòng chuyển khoản đặt cọc để hoàn tất đặt lịch."
+                        : "Tiếp nhận thành công. Vui lòng di chuyển đến phòng khám được chỉ định.")
                 .secondaryDepartmentId(savedTicket.getSecondaryDepartmentId())
                 .secondaryDepartmentName(savedTicket.getSecondaryDepartmentName())
                 .multiSpecialtyNote(savedTicket.getMultiSpecialtyNote())
@@ -306,21 +361,32 @@ public class IntakeService {
                 .triageFlagId(savedTicket.getTriageFlagId())
                 .isOutOfDataset(Boolean.TRUE.equals(savedTicket.getIsOutOfDataset()))
                 .flagReason(savedTicket.getFlagReason())
+                .status(savedTicket.getStatus())
+                .paymentStatus(savedTicket.getPaymentStatus())
+                .paymentCode(savedTicket.getPaymentCode())
+                .depositAmount(savedTicket.getDepositAmount())
+                .paidAmount(savedTicket.getPaidAmount())
+                .paymentExpiresAt(savedTicket.getPaymentExpiresAt())
+                .paidAt(savedTicket.getPaidAt())
+                .qrUrl(qrUrl)
                 .build();
     }
 
     @Transactional
     public QueueTicket updateTicketStatus(String ticketNumber, QueueStatus status) {
         QueueTicket ticket = queueTicketRepository
-                .findByAppointmentDateAndTicketNumber(LocalDate.now(), ticketNumber)
+                .findByAppointmentDateAndTicketNumber(LocalDate.now(CLINIC_ZONE), ticketNumber)
                 .or(() -> queueTicketRepository.findTopByTicketNumberOrderByAppointmentDateDesc(ticketNumber))
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phiếu khám có mã: " + ticketNumber));
 
         ticket.setStatus(status);
+        if (status == QueueStatus.CANCELLED && ticket.getPaymentStatus() == PaymentStatus.UNPAID) {
+            ticket.setPaymentStatus(PaymentStatus.EXPIRED);
+        }
         QueueTicket saved = queueTicketRepository.save(ticket);
         log.info("Cập nhật trạng thái phiếu {} sang {}", ticketNumber, status);
 
-        if (status == QueueStatus.CANCELLED) {
+        if (status == QueueStatus.CANCELLED || status == QueueStatus.EXPIRED) {
             scheduleClient.releaseSlot(ticket.getAppointmentDate(), ticket.getTicketNumber());
         }
 
@@ -331,7 +397,7 @@ public class IntakeService {
     public QueueTicketDetailResponse getActiveTicketByPatientId(Long patientId) {
         List<QueueTicket> tickets = queueTicketRepository.findActiveTicketsByPatientId(
                 patientId,
-                List.of(QueueStatus.WAITING, QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
+                List.of(QueueStatus.PENDING_PAYMENT, QueueStatus.WAITING, QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
         );
 
         if (tickets.isEmpty()) {
@@ -339,8 +405,19 @@ public class IntakeService {
         }
 
         QueueTicket ticket = tickets.get(0);
+        LocalDateTime nowInClinic = LocalDateTime.now(CLINIC_ZONE);
 
-        if (ticket.getAppointmentDate().isBefore(LocalDate.now())) {
+        if (ticket.getStatus() == QueueStatus.PENDING_PAYMENT
+                && ticket.getPaymentExpiresAt() != null
+                && !ticket.getPaymentExpiresAt().isAfter(nowInClinic)) {
+            ticket.setStatus(QueueStatus.EXPIRED);
+            ticket.setPaymentStatus(PaymentStatus.EXPIRED);
+            queueTicketRepository.save(ticket);
+            scheduleClient.releaseSlot(ticket.getAppointmentDate(), ticket.getTicketNumber());
+            throw new IllegalArgumentException("Lịch giữ chỗ đã hết hạn thanh toán (quá 15 phút).");
+        }
+
+        if (ticket.getAppointmentDate().isBefore(nowInClinic.toLocalDate())) {
             ticket.setStatus(QueueStatus.CANCELLED);
             queueTicketRepository.save(ticket);
             scheduleClient.releaseSlot(ticket.getAppointmentDate(), ticket.getTicketNumber());
@@ -358,7 +435,7 @@ public class IntakeService {
 
         List<QueueTicket> tickets = queueTicketRepository.findActiveTicketsByIdentifier(
                 identifier.trim(),
-                List.of(QueueStatus.WAITING, QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
+                List.of(QueueStatus.PENDING_PAYMENT, QueueStatus.WAITING, QueueStatus.CALLED, QueueStatus.IN_CONSULTATION)
         );
 
         if (tickets.isEmpty()) {
@@ -366,8 +443,19 @@ public class IntakeService {
         }
 
         QueueTicket ticket = tickets.get(0);
+        LocalDateTime nowInClinic = LocalDateTime.now(CLINIC_ZONE);
 
-        if (ticket.getAppointmentDate().isBefore(LocalDate.now())) {
+        if (ticket.getStatus() == QueueStatus.PENDING_PAYMENT
+                && ticket.getPaymentExpiresAt() != null
+                && !ticket.getPaymentExpiresAt().isAfter(nowInClinic)) {
+            ticket.setStatus(QueueStatus.EXPIRED);
+            ticket.setPaymentStatus(PaymentStatus.EXPIRED);
+            queueTicketRepository.save(ticket);
+            scheduleClient.releaseSlot(ticket.getAppointmentDate(), ticket.getTicketNumber());
+            throw new IllegalArgumentException("Lịch giữ chỗ đã hết hạn thanh toán (quá 15 phút).");
+        }
+
+        if (ticket.getAppointmentDate().isBefore(nowInClinic.toLocalDate())) {
             ticket.setStatus(QueueStatus.CANCELLED);
             queueTicketRepository.save(ticket);
             scheduleClient.releaseSlot(ticket.getAppointmentDate(), ticket.getTicketNumber());
@@ -416,6 +504,15 @@ public class IntakeService {
                 .flagReason(ticket.getFlagReason())
                 .confirmedIcd10Code(ticket.getConfirmedIcd10Code())
                 .confirmedDiseaseName(ticket.getConfirmedDiseaseName())
+                .paymentStatus(ticket.getPaymentStatus())
+                .paymentCode(ticket.getPaymentCode())
+                .depositAmount(ticket.getDepositAmount())
+                .paidAmount(ticket.getPaidAmount())
+                .paymentExpiresAt(ticket.getPaymentExpiresAt())
+                .paidAt(ticket.getPaidAt())
+                .externalTxId(ticket.getExternalTxId())
+                .adminNote(ticket.getAdminNote())
+                .qrUrl(vietQrService.resolveQrUrlForTicket(ticket))
                 .build();
     }
 }
