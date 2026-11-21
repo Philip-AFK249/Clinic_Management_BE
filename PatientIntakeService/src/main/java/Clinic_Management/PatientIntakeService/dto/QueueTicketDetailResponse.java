@@ -64,4 +64,14 @@ public class QueueTicketDetailResponse {
     private String flagReason;
     private String confirmedIcd10Code;
     private String confirmedDiseaseName;
+
+    private Clinic_Management.PatientIntakeService.entity.PaymentStatus paymentStatus;
+    private String paymentCode;
+    private java.math.BigDecimal depositAmount;
+    private java.math.BigDecimal paidAmount;
+    private LocalDateTime paymentExpiresAt;
+    private LocalDateTime paidAt;
+    private String externalTxId;
+    private String adminNote;
+    private String qrUrl;
 }

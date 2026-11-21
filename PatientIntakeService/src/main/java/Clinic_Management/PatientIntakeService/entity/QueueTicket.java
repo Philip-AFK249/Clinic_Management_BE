@@ -5,6 +5,7 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -15,7 +16,9 @@ import java.time.LocalTime;
         indexes = {
                 @Index(name = "idx_ticket_date_dept_status", columnList = "appointment_date, department_id, status"),
                 @Index(name = "idx_ticket_doctor_queue", columnList = "appointment_date, doctor_id, status, slot_start_time"),
-                @Index(name = "idx_ticket_number", columnList = "ticket_number")
+                @Index(name = "idx_ticket_number", columnList = "ticket_number"),
+                @Index(name = "idx_ticket_payment_code", columnList = "payment_code", unique = true),
+                @Index(name = "idx_ticket_pending_expiry", columnList = "status, payment_expires_at")
         },
         uniqueConstraints = {
                 @UniqueConstraint(
@@ -75,6 +78,32 @@ public class QueueTicket {
     @Builder.Default
     private QueueStatus status = QueueStatus.WAITING;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", nullable = false, length = 30)
+    @Builder.Default
+    private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
+
+    @Column(name = "payment_code", unique = true, length = 24)
+    private String paymentCode;
+
+    @Column(name = "deposit_amount", precision = 12, scale = 2)
+    private BigDecimal depositAmount;
+
+    @Column(name = "paid_amount", precision = 12, scale = 2)
+    private BigDecimal paidAmount;
+
+    @Column(name = "payment_expires_at")
+    private LocalDateTime paymentExpiresAt;
+
+    @Column(name = "paid_at")
+    private LocalDateTime paidAt;
+
+    @Column(name = "external_tx_id", length = 100)
+    private String externalTxId;
+
+    @Column(name = "admin_note", columnDefinition = "TEXT")
+    private String adminNote;
+
     @Column(name = "chief_complaint", columnDefinition = "TEXT")
     private String chiefComplaint;
 
@@ -123,7 +152,7 @@ public class QueueTicket {
     private String receiptNumber;
 
     @Column(name = "receipt_amount", precision = 12, scale = 2)
-    private java.math.BigDecimal receiptAmount;
+    private BigDecimal receiptAmount;
 
     @Builder.Default
     @Column(name = "is_receipt_verified")
@@ -144,5 +173,4 @@ public class QueueTicket {
 
     @Column(name = "confirmed_disease_name", length = 255)
     private String confirmedDiseaseName;
-
 }

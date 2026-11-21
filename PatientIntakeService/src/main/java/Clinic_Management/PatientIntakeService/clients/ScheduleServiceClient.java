@@ -1,6 +1,5 @@
 package Clinic_Management.PatientIntakeService.clients;
 
-
 import Clinic_Management.PatientIntakeService.dto.ScheduleAssignDoctorRequest;
 import Clinic_Management.PatientIntakeService.dto.ScheduleAssignDoctorResponse;
 import Clinic_Management.PatientIntakeService.dto.ScheduleTimeSlotResponse;
@@ -51,10 +50,35 @@ public class ScheduleServiceClient {
         }
     }
 
-    public void releaseSlot(String ticketNumber) {
+    public void confirmSlot(LocalDate appointmentDate, String ticketNumber) {
+        try {
+            restClient.patch()
+                    .uri(uriBuilder -> {
+                        var builder = uriBuilder.path("/assignments/{ticketNumber}/confirm");
+                        if (appointmentDate != null) {
+                            builder.queryParam("date", appointmentDate.toString());
+                        }
+                        return builder.build(ticketNumber);
+                    })
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (org.springframework.web.client.HttpClientErrorException | org.springframework.web.client.HttpServerErrorException ex) {
+            throw new IllegalStateException("Không thể chốt slot khám: " + ex.getResponseBodyAsString());
+        } catch (Exception ex) {
+            throw new IllegalStateException("Không thể kết nối đến DoctorScheduleService (:8081): " + ex.getMessage());
+        }
+    }
+
+    public void releaseSlot(LocalDate appointmentDate, String ticketNumber) {
         try {
             restClient.delete()
-                    .uri("/assignments/{ticketNumber}", ticketNumber)
+                    .uri(uriBuilder -> {
+                        var builder = uriBuilder.path("/assignments/{ticketNumber}");
+                        if (appointmentDate != null) {
+                            builder.queryParam("date", appointmentDate.toString());
+                        }
+                        return builder.build(ticketNumber);
+                    })
                     .retrieve()
                     .toBodilessEntity();
         } catch (Exception ex) {

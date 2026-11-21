@@ -18,6 +18,7 @@ import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -121,16 +122,22 @@ public class IntakeService {
         return cleaned.isEmpty() ? null : cleaned;
     }
 
-    private void linkFlagToTicket(String flagId, String ticketNumber, String patientName) {
+    private void linkFlagToTicket(String flagId, String ticketNumber, String patientName,
+                                  String flagReason, boolean isOutOfDataset) {
         if (flagId == null || flagId.isBlank()) return;
         try {
+            Map<String, Object> body = new HashMap<>();
+            body.put("ticket_number", ticketNumber);
+            body.put("patient_name", patientName != null ? patientName : "");
+            // Keep the AI gateway's Active Learning row in sync with the final
+            // reception decision (including a corrected OOD reason).
+            body.put("flag_reason", (flagReason == null || flagReason.isBlank())
+                    ? (isOutOfDataset ? "NEW_SYMPTOM_PATTERN" : "")
+                    : flagReason.trim());
             aiGatewayClient.patch()
                     .uri("/api/v1/admin/flagged-symptoms/{flagId}", flagId.trim())
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of(
-                            "ticket_number", ticketNumber,
-                            "patient_name", patientName
-                    ))
+                    .body(body)
                     .retrieve()
                     .toBodilessEntity();
         } catch (Exception ex) {
@@ -263,7 +270,13 @@ public class IntakeService {
         }
 
         if (cleanedFlagId != null) {
-            linkFlagToTicket(cleanedFlagId, savedTicket.getTicketNumber(), patient.getFullName());
+            linkFlagToTicket(
+                    cleanedFlagId,
+                    savedTicket.getTicketNumber(),
+                    patient.getFullName(),
+                    savedTicket.getFlagReason(),
+                    isOutOfDataset
+            );
         }
 
         log.info("Tiếp nhận thành công BN: {}, Mã phiếu: {}, Phòng khám: {}",

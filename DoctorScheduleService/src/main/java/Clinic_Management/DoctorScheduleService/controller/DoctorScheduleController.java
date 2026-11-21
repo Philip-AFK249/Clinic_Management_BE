@@ -84,13 +84,6 @@ public class DoctorScheduleController {
         return ResponseEntity.ok(scheduleService.assignDoctorToSlot(request));
     }
 
-    @DeleteMapping("/assignments/{ticketNumber}")
-    @Operation(summary = "Giải phóng slot khám khi phiếu khám hoặc lịch hẹn bị hủy")
-    public ResponseEntity<Void> releaseSlot(@PathVariable String ticketNumber) {
-        scheduleService.releaseSlotAssignment(ticketNumber);
-        return ResponseEntity.noContent().build();
-    }
-
     @PutMapping("/shifts/{id}")
     @Operation(summary = "Admin cập nhật thông tin ca trực của bác sĩ")
     public ResponseEntity<DoctorShift> updateShift(
@@ -103,6 +96,24 @@ public class DoctorScheduleController {
     @Operation(summary = "Admin xóa ca trực của bác sĩ")
     public ResponseEntity<Void> deleteShift(@PathVariable Long id) {
         scheduleService.deleteShift(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/assignments/{ticketNumber}/confirm")
+    @Operation(summary = "Chốt slot khám từ HOLD sang BOOKED sau khi thanh toán cọc")
+    public ResponseEntity<Void> confirmSlot(
+            @PathVariable String ticketNumber,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        scheduleService.confirmSlotAssignment(date, ticketNumber);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/assignments/{ticketNumber}")
+    @Operation(summary = "Giải phóng slot khám khi phiếu khám hoặc lịch hẹn bị hủy/hết hạn")
+    public ResponseEntity<Void> releaseSlot(
+            @PathVariable String ticketNumber,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        scheduleService.releaseSlotAssignment(date, ticketNumber);
         return ResponseEntity.noContent().build();
     }
 }

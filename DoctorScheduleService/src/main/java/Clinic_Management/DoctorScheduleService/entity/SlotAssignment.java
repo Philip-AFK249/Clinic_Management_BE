@@ -1,14 +1,21 @@
 package Clinic_Management.DoctorScheduleService.entity;
 
-
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 @Entity
-@Table(name = "slot_assignments")
+@Table(
+        name = "slot_assignments",
+        indexes = {
+                @Index(name = "idx_slot_dept_date_time_status", columnList = "department_id, appointment_date, slot_start_time, status"),
+                @Index(name = "idx_slot_doctor_date_time_status", columnList = "doctor_id, appointment_date, slot_start_time, status"),
+                @Index(name = "idx_slot_date_ticket", columnList = "appointment_date, ticket_number")
+        }
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -33,7 +40,7 @@ public class SlotAssignment {
     private LocalDate appointmentDate;
 
     @Column(nullable = false)
-    private LocalTime slotStartTime; // Start time of the slot
+    private LocalTime slotStartTime;
 
     @Column(name = "patient_name")
     private String patientName;
@@ -47,9 +54,10 @@ public class SlotAssignment {
     @Column(name = "chief_complaint", columnDefinition = "TEXT")
     private String chiefComplaint;
 
-    @Column(name = "status")
+    @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
     private String status = "BOOKED";
 
-
+    @Column(name = "hold_expires_at")
+    private LocalDateTime holdExpiresAt;
 }

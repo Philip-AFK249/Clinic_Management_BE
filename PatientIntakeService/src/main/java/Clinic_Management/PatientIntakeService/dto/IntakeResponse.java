@@ -33,4 +33,12 @@ public class IntakeResponse {
     private String triageFlagId;
     private Boolean isOutOfDataset;
     private String flagReason;
+    private Clinic_Management.PatientIntakeService.entity.QueueStatus status;
+    private Clinic_Management.PatientIntakeService.entity.PaymentStatus paymentStatus;
+    private String paymentCode;
+    private java.math.BigDecimal depositAmount;
+    private java.math.BigDecimal paidAmount;
+    private LocalDateTime paymentExpiresAt;
+    private LocalDateTime paidAt;
+    private String qrUrl;
 }
