@@ -79,7 +79,7 @@ public class QueueTicket {
     private QueueStatus status = QueueStatus.WAITING;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "payment_status", nullable = false, length = 30)
+    @Column(name = "payment_status", nullable = false, length = 30, columnDefinition = "varchar(30) default 'UNPAID'")
     @Builder.Default
     private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
 

@@ -321,7 +321,7 @@ public class IntakeService {
         log.info("Cập nhật trạng thái phiếu {} sang {}", ticketNumber, status);
 
         if (status == QueueStatus.CANCELLED) {
-            scheduleClient.releaseSlot(ticketNumber);
+            scheduleClient.releaseSlot(ticket.getAppointmentDate(), ticket.getTicketNumber());
         }
 
         return saved;
@@ -343,7 +343,7 @@ public class IntakeService {
         if (ticket.getAppointmentDate().isBefore(LocalDate.now())) {
             ticket.setStatus(QueueStatus.CANCELLED);
             queueTicketRepository.save(ticket);
-            scheduleClient.releaseSlot(ticket.getTicketNumber());
+            scheduleClient.releaseSlot(ticket.getAppointmentDate(), ticket.getTicketNumber());
             throw new IllegalArgumentException("Phiếu khám trước đó đã hết hạn do qua ngày hẹn.");
         }
 
@@ -370,8 +370,10 @@ public class IntakeService {
         if (ticket.getAppointmentDate().isBefore(LocalDate.now())) {
             ticket.setStatus(QueueStatus.CANCELLED);
             queueTicketRepository.save(ticket);
-            scheduleClient.releaseSlot(ticket.getTicketNumber());
-            throw new IllegalArgumentException("Phiếu khám trước đó đã hết hạn do qua ngày hẹn.");
+            scheduleClient.releaseSlot(ticket.getAppointmentDate(), ticket.getTicketNumber());
+            log.info("Phiếu {} ngày {} đã quá hạn so với hôm nay, tự động chuyển sang CANCELLED",
+                    ticket.getTicketNumber(), ticket.getAppointmentDate());
+            return null;
         }
 
         return mapToDetailResponse(ticket, ticket.getPatient());
