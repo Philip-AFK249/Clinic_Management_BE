@@ -1,5 +1,6 @@
 package Clinic_Management.PatientIntakeService.clients;
 
+
 import Clinic_Management.PatientIntakeService.dto.ScheduleAssignDoctorRequest;
 import Clinic_Management.PatientIntakeService.dto.ScheduleAssignDoctorResponse;
 import Clinic_Management.PatientIntakeService.dto.ScheduleTimeSlotResponse;
@@ -50,16 +51,10 @@ public class ScheduleServiceClient {
         }
     }
 
-    public void releaseSlot(LocalDate appointmentDate, String ticketNumber) {
+    public void releaseSlot(String ticketNumber) {
         try {
             restClient.delete()
-                    .uri(uriBuilder -> {
-                        var builder = uriBuilder.path("/assignments/{ticketNumber}");
-                        if (appointmentDate != null) {
-                            builder.queryParam("date", appointmentDate.toString());
-                        }
-                        return builder.build(ticketNumber);
-                    })
+                    .uri("/assignments/{ticketNumber}", ticketNumber)
                     .retrieve()
                     .toBodilessEntity();
         } catch (Exception ex) {

@@ -12,17 +12,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.ZoneId;
 import java.util.*;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class DoctorScheduleService {
-
-    private static final ZoneId CLINIC_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final DoctorShiftRepository shiftRepository;
     private final DoctorRepository doctorRepository;
@@ -67,7 +63,6 @@ public class DoctorScheduleService {
 
         return shiftRepository.save(shift);
     }
-
     @Transactional(readOnly = true)
     public List<TimeSlotResponse> getAvailableSlots(Long departmentId, LocalDate date) {
         List<DoctorShift> outpatientShifts = shiftRepository
@@ -95,8 +90,10 @@ public class DoctorScheduleService {
                         .mapToInt(DoctorShift::getMaxPatientsPerSlot)
                         .sum();
 
+                // CHỈ ĐẾM CÁC SLOT ĐANG Ở TRẠNG THÁI BOOKED (Slot bị hủy sẽ không tính)
                 long bookedCount = slotAssignmentRepository
-                        .countBookedByDepartmentAndSlot(departmentId, date, slotStart);
+                        .countByDepartmentIdAndAppointmentDateAndSlotStartTimeAndStatus(
+                                departmentId, date, slotStart, "BOOKED");
 
                 int availableCapacity = Math.max(0, totalCapacity - (int) bookedCount);
 
@@ -141,8 +138,8 @@ public class DoctorScheduleService {
             for (DoctorShift shift : activeShifts) {
                 if (shift.getDoctor().getId().equals(request.getPreferredDoctorId())) {
                     long currentAssigned = slotAssignmentRepository
-                            .countBookedByDoctorAndSlot(
-                                    shift.getDoctor().getId(), date, slotStartTime);
+                            .countByDoctorIdAndAppointmentDateAndSlotStartTimeAndStatus(
+                                    shift.getDoctor().getId(), date, slotStartTime, "BOOKED");
                     if (currentAssigned < shift.getMaxPatientsPerSlot()) {
                         selectedDoctor = shift.getDoctor();
                         log.info("Phân bổ theo chỉ định của bệnh nhân: Bác sĩ ID {}", selectedDoctor.getId());
@@ -159,8 +156,8 @@ public class DoctorScheduleService {
             for (DoctorShift shift : activeShifts) {
                 Doctor doctor = shift.getDoctor();
                 long currentAssigned = slotAssignmentRepository
-                        .countBookedByDoctorAndSlot(
-                                doctor.getId(), date, slotStartTime);
+                        .countByDoctorIdAndAppointmentDateAndSlotStartTimeAndStatus(
+                                doctor.getId(), date, slotStartTime, "BOOKED");
 
                 if (currentAssigned < shift.getMaxPatientsPerSlot() && currentAssigned < minPatientCount) {
                     minPatientCount = currentAssigned;
@@ -199,23 +196,20 @@ public class DoctorScheduleService {
     }
 
     /**
-     * Giải phóng slot khi phiếu khám bị hủy (lọc theo cả ngày khám để tránh trùng mã vé #A-001)
+     * Giải phóng slot khi phiếu khám bị hủy
      */
     @Transactional
-    public void releaseSlotAssignment(LocalDate appointmentDate, String ticketNumber) {
-        List<SlotAssignment> assignments = (appointmentDate != null)
-                ? slotAssignmentRepository.findByAppointmentDateAndTicketNumber(appointmentDate, ticketNumber)
-                : slotAssignmentRepository.findByTicketNumber(ticketNumber);
-
+    public void releaseSlotAssignment(String ticketNumber) {
+        List<SlotAssignment> assignments = slotAssignmentRepository.findByTicketNumber(ticketNumber);
         if (assignments.isEmpty()) {
-            log.warn("Không tìm thấy slot_assignment cho phiếu: {} (ngày {})", ticketNumber, appointmentDate);
+            log.warn("Không tìm thấy slot_assignment cho phiếu: {}", ticketNumber);
             return;
         }
         for (SlotAssignment assignment : assignments) {
             assignment.setStatus("CANCELLED");
         }
         slotAssignmentRepository.saveAll(assignments);
-        log.info("Đã hủy và giải phóng slot_assignment cho phiếu: {} (ngày {})", ticketNumber, appointmentDate);
+        log.info("Đã hủy và giải phóng slot_assignment cho phiếu: {}", ticketNumber);
     }
 
     @Transactional(readOnly = true)
@@ -277,7 +271,6 @@ public class DoctorScheduleService {
                 })
                 .build();
     }
-
     @Transactional
     public DoctorShift updateShift(Long shiftId, UpdateShiftRequest request) {
         DoctorShift shift = shiftRepository.findById(shiftId)
@@ -330,4 +323,5 @@ public class DoctorScheduleService {
         shiftRepository.delete(shift);
         log.info("Admin đã xóa ca trực #{} của BS {}", shiftId, shift.getDoctor().getFullName());
     }
+
 }

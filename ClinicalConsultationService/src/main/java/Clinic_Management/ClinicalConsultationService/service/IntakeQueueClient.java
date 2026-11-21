@@ -1,29 +1,18 @@
 package Clinic_Management.ClinicalConsultationService.service;
 
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-import java.time.Duration;
-import java.util.Map;
-
 @Component
-@Slf4j
 public class IntakeQueueClient {
 
     private final RestClient restClient;
 
     public IntakeQueueClient(@Value("${services.patient-intake.base-url}") String baseUrl) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        // Completing an encounter must never hang on a slow intake service.
-        factory.setConnectTimeout((int) Duration.ofSeconds(2).toMillis());
-        factory.setReadTimeout((int) Duration.ofSeconds(3).toMillis());
         this.restClient = RestClient.builder()
                 .baseUrl(baseUrl)
-                .requestFactory(factory)
                 .build();
     }
 
@@ -39,8 +28,7 @@ public class IntakeQueueClient {
                     .retrieve()
                     .toBodilessEntity();
         } catch (Exception ex) {
-            log.warn("Không thể đồng bộ trạng thái ticket {} sang PatientIntakeService: {}",
-                    ticketNumber, ex.getMessage());
+            System.err.println("Không thể đồng bộ trạng thái ticket sang PatientIntakeService: " + ex.getMessage());
         }
     }
 
@@ -53,7 +41,7 @@ public class IntakeQueueClient {
             restClient.patch()
                     .uri("/tickets/{ticketNumber}/confirmed-diagnosis", ticketNumber)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of(
+                    .body(java.util.Map.of(
                             "icd10Code", icd10Code != null ? icd10Code : "",
                             "diseaseName", diseaseName != null ? diseaseName : "",
                             "doctorName", doctorName != null ? doctorName : ""
@@ -61,8 +49,7 @@ public class IntakeQueueClient {
                     .retrieve()
                     .toBodilessEntity();
         } catch (Exception ex) {
-            log.warn("Không thể đồng bộ chẩn đoán xác nhận của ticket {} sang PatientIntakeService: {}",
-                    ticketNumber, ex.getMessage());
+            System.err.println("Không thể đồng bộ chẩn đoán xác nhận sang PatientIntakeService: " + ex.getMessage());
         }
     }
 

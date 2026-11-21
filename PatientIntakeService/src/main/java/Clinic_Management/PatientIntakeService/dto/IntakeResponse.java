@@ -1,5 +1,4 @@
 package Clinic_Management.PatientIntakeService.dto;
-import Clinic_Management.PatientIntakeService.entity.QueueStatus;
 import Clinic_Management.PatientIntakeService.entity.TriagePriority;
 import lombok.Builder;
 import lombok.Data;
@@ -34,5 +33,4 @@ public class IntakeResponse {
     private String triageFlagId;
     private Boolean isOutOfDataset;
     private String flagReason;
-    private QueueStatus status;
 }

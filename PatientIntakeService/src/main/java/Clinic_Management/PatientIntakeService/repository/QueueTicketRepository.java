@@ -60,8 +60,6 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
     """)
     List<QueueTicket> findByTicketNumberWithPatientOrderByDateDesc(@Param("ticketNumber") String ticketNumber);
 
-    List<QueueTicket> findByStatusOrderByCheckInTimeDesc(QueueStatus status);
-
     Optional<QueueTicket> findTopByTicketNumberOrderByAppointmentDateDesc(String ticketNumber);
     Optional<QueueTicket> findByAppointmentDateAndTicketNumber(LocalDate appointmentDate, String ticketNumber);
 

@@ -5,7 +5,6 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -124,7 +123,7 @@ public class QueueTicket {
     private String receiptNumber;
 
     @Column(name = "receipt_amount", precision = 12, scale = 2)
-    private BigDecimal receiptAmount;
+    private java.math.BigDecimal receiptAmount;
 
     @Builder.Default
     @Column(name = "is_receipt_verified")
@@ -146,6 +145,4 @@ public class QueueTicket {
     @Column(name = "confirmed_disease_name", length = 255)
     private String confirmedDiseaseName;
 
-    @Column(name = "hold_expires_at")
-    private LocalDateTime holdExpiresAt;
 }

@@ -83,17 +83,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/clinic_management_patientintake_service
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: "123"
-      # Spring relaxed binding maps services.doctor-schedule.base-url to
-      # SERVICES_DOCTORSCHEDULE_BASEURL (the underscore variant is kept for
-      # backward compatibility with existing .env files).
-      SERVICES_DOCTORSCHEDULE_BASEURL: http://doctor-schedule-service:8081/api/v1/schedules
       SERVICES_DOCTOR_SCHEDULE_BASE_URL: http://doctor-schedule-service:8081/api/v1/schedules
-      # The RAG gateway runs in its own compose project; reach it through the
-      # Docker host instead of the service's own container localhost.
-      SERVICES_AIGATEWAY_BASEURL: ${SERVICES_AI_GATEWAY_BASE_URL:-http://host.docker.internal:8008}
-      SERVICES_AI_GATEWAY_BASE_URL: ${SERVICES_AI_GATEWAY_BASE_URL:-http://host.docker.internal:8008}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
@@ -117,8 +107,6 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/clinic_management_clinicalconsultation_service
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: "123"
-      # Canonical relaxed-binding name plus the legacy underscore spelling.
-      SERVICES_PATIENTINTAKE_BASEURL: http://patient-intake-service:8082/api/v1/queue
       SERVICES_PATIENT_INTAKE_BASE_URL: http://patient-intake-service:8082/api/v1/queue
     depends_on:
       postgres:

@@ -64,6 +64,4 @@ public class QueueTicketDetailResponse {
     private String flagReason;
     private String confirmedIcd10Code;
     private String confirmedDiseaseName;
-    private LocalDateTime holdExpiresAt;
-    private Long remainingSeconds;
 }
