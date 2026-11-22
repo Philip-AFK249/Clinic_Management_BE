@@ -38,6 +38,7 @@ public class PrescriptionDetailResponse {
         private String drugName;
         private String concentration;
         private String dosageForm;
+        private String unit;
         private String routeFrequency;
         private String duration;
         private Integer quantity;

@@ -30,6 +30,9 @@ public class Drug {
     @Column(nullable = false, length = 50)
     private String dosageForm; // capsule, tablet, syrup, injection
 
+    @Column(name = "unit", length = 30)
+    private String unit; // Đơn vị tính: Viên, Lọ, Ống, Gói, Chai, Tuýp, ml...
+
     @Column(nullable = false)
     private Integer stockQuantity; // count of drug in stock
 

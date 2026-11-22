@@ -31,6 +31,9 @@ public class PrescriptionItem {
     @Column(name = "dosage_form", nullable = false)
     private String dosageForm; // Dosage form
 
+    @Column(name = "unit", length = 30)
+    private String unit; // Đơn vị tính: Viên, Lọ, Ống...
+
     @Column(name = "route_frequency", nullable = false)
     private String routeFrequency; // 1 times per day, 2 times per day, 3 times per day, 4 times per day
 

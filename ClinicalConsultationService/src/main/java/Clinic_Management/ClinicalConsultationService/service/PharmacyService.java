@@ -7,6 +7,7 @@ import Clinic_Management.ClinicalConsultationService.entity.*;
 import Clinic_Management.ClinicalConsultationService.repository.DrugRepository;
 import Clinic_Management.ClinicalConsultationService.repository.PrescriptionRepository;
 import Clinic_Management.ClinicalConsultationService.repository.StockInvoiceRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -80,6 +81,48 @@ public class PharmacyService {
         return drugRepository.findByActiveTrueOrderByNameAsc();
     }
 
+    /**
+     * Bổ sung đơn vị tính cho các thuốc đã có trong kho nhưng chưa được khai báo,
+     * dựa trên dạng bào chế (dosageForm) đã lưu.
+     */
+    @PostConstruct
+    @Transactional
+    public void backfillDrugUnits() {
+        List<Drug> drugs = drugRepository.findAll();
+        List<Drug> toUpdate = new java.util.ArrayList<>();
+        for (Drug drug : drugs) {
+            if (drug.getUnit() == null || drug.getUnit().isBlank()) {
+                drug.setUnit(resolveUnitFromDosageForm(drug.getDosageForm()));
+                toUpdate.add(drug);
+            }
+        }
+        if (!toUpdate.isEmpty()) {
+            drugRepository.saveAll(toUpdate);
+            log.info("Đã bổ sung đơn vị tính cho {} thuốc còn thiếu.", toUpdate.size());
+        }
+    }
+
+    private String resolveUnitFromDosageForm(String dosageForm) {
+        String form = dosageForm == null ? "" : dosageForm.toLowerCase();
+        if (form.contains("gói")) {
+            return "Gói";
+        }
+        if (form.contains("ống")) {
+            return "Ống";
+        }
+        if (form.contains("bình") || form.contains("xịt")) {
+            return "Bình";
+        }
+        if (form.contains("kem") || form.contains("mỡ") || form.contains("gel")) {
+            return "Tuýp";
+        }
+        if (form.contains("siro") || form.contains("dung dịch") || form.contains("nhũ tương")
+                || form.contains("hỗn dịch") || form.contains("nhỏ")) {
+            return "Lọ";
+        }
+        return "Viên";
+    }
+
     private PrescriptionDetailResponse mapToDetailResponse(Prescription p) {
         List<PrescriptionDetailResponse.PrescriptionItemResponse> itemResponses = p.getItems().stream()
                 .map(i -> PrescriptionDetailResponse.PrescriptionItemResponse.builder()
@@ -89,6 +132,7 @@ public class PharmacyService {
                         .drugName(i.getDrugName())
                         .concentration(i.getDrug().getConcentration())
                         .dosageForm(i.getDosageForm())
+                        .unit(i.getUnit() != null && !i.getUnit().isBlank() ? i.getUnit() : i.getDrug().getUnit())
                         .routeFrequency(i.getRouteFrequency())
                         .duration(i.getDuration())
                         .quantity(i.getQuantity())
@@ -130,10 +174,12 @@ public class PharmacyService {
                 .name(req.getName().trim())
                 .concentration(req.getConcentration().trim())
                 .dosageForm(req.getDosageForm().trim())
+                .unit(req.getUnit().trim())
                 .stockQuantity(req.getStockQuantity())
                 .unitPrice(req.getUnitPrice())
                 .bhytCoverage(req.getBhytCoverage())
                 .isPenicillinClass(Boolean.TRUE.equals(req.getIsPenicillinClass()))
+                .expiryDate(req.getExpiryDate())
                 .active(true)
                 .build();
 
@@ -150,10 +196,12 @@ public class PharmacyService {
         drug.setName(req.getName().trim());
         drug.setConcentration(req.getConcentration().trim());
         drug.setDosageForm(req.getDosageForm().trim());
+        drug.setUnit(req.getUnit().trim());
         drug.setUnitPrice(req.getUnitPrice());
         drug.setStockQuantity(req.getStockQuantity());
         drug.setBhytCoverage(req.getBhytCoverage());
         drug.setIsPenicillinClass(Boolean.TRUE.equals(req.getIsPenicillinClass()));
+        drug.setExpiryDate(req.getExpiryDate());
         if (req.getActive() != null) {
             drug.setActive(req.getActive());
         }

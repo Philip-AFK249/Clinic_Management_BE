@@ -21,6 +21,9 @@ public class UpdateDrugRequest {
     @NotBlank(message = "Dạng bào chế không được để trống")
     private String dosageForm;
 
+    @NotBlank(message = "Đơn vị tính không được để trống")
+    private String unit;
+
     @NotNull(message = "Đơn giá không được để trống")
     @DecimalMin(value = "0.0", inclusive = false, message = "Đơn giá phải lớn hơn 0")
     private BigDecimal unitPrice;

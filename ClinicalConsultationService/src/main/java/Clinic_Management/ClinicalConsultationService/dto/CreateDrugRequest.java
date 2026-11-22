@@ -25,6 +25,9 @@ public class CreateDrugRequest {
     @NotBlank(message = "Dạng bào chế không được để trống")
     private String dosageForm;
 
+    @NotBlank(message = "Đơn vị tính không được để trống")
+    private String unit;
+
     @NotNull(message = "Số lượng tồn kho ban đầu không được để trống")
     @Min(value = 0, message = "Số lượng tồn kho không được âm")
     private Integer stockQuantity;
