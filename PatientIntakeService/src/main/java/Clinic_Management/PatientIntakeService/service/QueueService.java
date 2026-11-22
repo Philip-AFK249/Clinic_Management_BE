@@ -480,6 +480,47 @@ public class QueueService {
         return new BookingLockStatusResponse(isLocked, lockedUntil, remaining, patient.getBookingLockReason());
     }
 
+    @Transactional
+    public void deleteOnlineTicket(String ticketNumber, LocalDate appointmentDate) {
+        QueueTicket ticket;
+        if (appointmentDate != null) {
+            ticket = queueTicketRepository.findByAppointmentDateAndTicketNumber(appointmentDate, ticketNumber)
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phiếu khám có mã: " + ticketNumber));
+        } else {
+            ticket = queueTicketRepository
+                    .findByAppointmentDateAndTicketNumber(LocalDate.now(), ticketNumber)
+                    .or(() -> queueTicketRepository.findTopByTicketNumberOrderByAppointmentDateDesc(ticketNumber))
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy phiếu khám có mã: " + ticketNumber));
+        }
+
+        if (ticket.getStatus() == QueueStatus.WAITING
+                || ticket.getStatus() == QueueStatus.CALLED
+                || ticket.getStatus() == QueueStatus.IN_CONSULTATION) {
+            throw new IllegalStateException("Không thể xóa vé đang chờ khám hoặc đang khám.");
+        }
+
+        if (ticket.getStatus() == QueueStatus.PENDING_CONFIRMATION) {
+            scheduleClient.releaseSlot(ticket.getTicketNumber());
+        }
+
+        queueTicketRepository.delete(ticket);
+        log.info("Đã xóa vé online {}", ticketNumber);
+    }
+
+    @Transactional
+    public int cleanupProcessedOnlineTickets() {
+        List<QueueTicket> tickets = queueTicketRepository
+                .findAllOnlineTicketsForAdmin(IntakeSource.ONLINE_BOOKING, LocalDate.now().minusDays(7));
+        List<QueueTicket> toDelete = tickets.stream()
+                .filter(t -> t.getStatus() == QueueStatus.REJECTED
+                        || t.getStatus() == QueueStatus.CANCELLED
+                        || t.getStatus() == QueueStatus.COMPLETED)
+                .toList();
+        queueTicketRepository.deleteAll(toDelete);
+        log.info("Đã dọn dẹp {} vé online đã xử lý.", toDelete.size());
+        return toDelete.size();
+    }
+
     private QueueTicketDetailResponse mapToDetailResponse(QueueTicket ticket, Patient patient) {
         return QueueTicketDetailResponse.builder()
                 .ticketNumber(ticket.getTicketNumber())

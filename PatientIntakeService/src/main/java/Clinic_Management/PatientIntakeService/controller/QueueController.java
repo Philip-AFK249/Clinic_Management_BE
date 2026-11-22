@@ -214,4 +214,20 @@ public class QueueController {
             @RequestParam(required = false) String identifier) {
         return ResponseEntity.ok(queueService.getBookingLockStatus(patientId, identifier));
     }
+
+    @DeleteMapping("/tickets/{ticketNumber}")
+    @Operation(summary = "Admin xóa bớt vé khám đã từ chối/hủy/hoàn tất khỏi bảng theo dõi")
+    public ResponseEntity<Void> deleteTicket(
+            @PathVariable String ticketNumber,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        queueService.deleteOnlineTicket(ticketNumber, date);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/online-tickets/cleanup")
+    @Operation(summary = "Admin dọn dẹp hàng loạt các vé online đã từ chối, đã hủy hoặc đã hoàn tất")
+    public ResponseEntity<java.util.Map<String, Integer>> cleanupProcessedOnlineTickets() {
+        int deletedCount = queueService.cleanupProcessedOnlineTickets();
+        return ResponseEntity.ok(java.util.Map.of("deletedCount", deletedCount));
+    }
 }
