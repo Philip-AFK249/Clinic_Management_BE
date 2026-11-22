@@ -54,6 +54,10 @@ public class PharmacyService {
 
         for (PrescriptionItem item : prescription.getItems()) {
             Drug drug = item.getDrug();
+            if (drug.getExpiryDate() != null && !drug.getExpiryDate().isAfter(LocalDate.now())) {
+                throw new IllegalStateException("Thuốc " + drug.getName() + " (Mã " + drug.getCode()
+                        + ") đã HẾT HẠN SỬ DỤNG (" + drug.getExpiryDate() + "). Không thể xuất kho.");
+            }
             if (drug.getStockQuantity() < item.getQuantity()) {
                 throw new IllegalStateException(String.format(
                         "Thuốc %s (Mã %s) không đủ tồn kho để xuất. Tồn kho: %d, Cần xuất: %d",
@@ -91,36 +95,54 @@ public class PharmacyService {
         List<Drug> drugs = drugRepository.findAll();
         List<Drug> toUpdate = new java.util.ArrayList<>();
         for (Drug drug : drugs) {
-            if (drug.getUnit() == null || drug.getUnit().isBlank()) {
+            boolean missing = drug.getUnit() == null || drug.getUnit().isBlank();
+            // Sửa lỗi cũ: "uống" chứa chuỗi "ống" nên bị suy luận nhầm thành đơn vị "Ống".
+            boolean mistypedOng = "Ống".equals(drug.getUnit())
+                    && containsWord(drug.getDosageForm(), "uống")
+                    && !containsWord(drug.getDosageForm(), "ống");
+            if (missing || mistypedOng) {
                 drug.setUnit(resolveUnitFromDosageForm(drug.getDosageForm()));
                 toUpdate.add(drug);
             }
         }
         if (!toUpdate.isEmpty()) {
             drugRepository.saveAll(toUpdate);
-            log.info("Đã bổ sung đơn vị tính cho {} thuốc còn thiếu.", toUpdate.size());
+            log.info("Đã bổ sung/chuẩn hóa đơn vị tính cho {} thuốc.", toUpdate.size());
         }
     }
 
     private String resolveUnitFromDosageForm(String dosageForm) {
         String form = dosageForm == null ? "" : dosageForm.toLowerCase();
-        if (form.contains("gói")) {
+        if (containsWord(form, "gói")) {
             return "Gói";
         }
-        if (form.contains("ống")) {
+        if (containsWord(form, "ống")) {
             return "Ống";
         }
-        if (form.contains("bình") || form.contains("xịt")) {
+        if (containsWord(form, "bình") || containsWord(form, "xịt")) {
             return "Bình";
         }
-        if (form.contains("kem") || form.contains("mỡ") || form.contains("gel")) {
+        if (containsWord(form, "kem") || containsWord(form, "mỡ") || containsWord(form, "gel")) {
             return "Tuýp";
         }
-        if (form.contains("siro") || form.contains("dung dịch") || form.contains("nhũ tương")
-                || form.contains("hỗn dịch") || form.contains("nhỏ")) {
+        if (containsWord(form, "siro") || containsWord(form, "dung dịch") || containsWord(form, "nhũ tương")
+                || containsWord(form, "hỗn dịch") || containsWord(form, "nhỏ")) {
             return "Lọ";
         }
         return "Viên";
+    }
+
+    /**
+     * Kiểm tra từ khóa xuất hiện như một từ riêng biệt (tránh "uống" khớp với "ống").
+     */
+    private boolean containsWord(String text, String word) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+        return java.util.regex.Pattern
+                .compile("(?<![\\p{L}\\p{N}])" + java.util.regex.Pattern.quote(word) + "(?![\\p{L}\\p{N}])")
+                .matcher(text.toLowerCase())
+                .find();
     }
 
     private PrescriptionDetailResponse mapToDetailResponse(Prescription p) {

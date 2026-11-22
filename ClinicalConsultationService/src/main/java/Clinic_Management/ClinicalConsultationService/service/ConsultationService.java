@@ -108,6 +108,7 @@ public class ConsultationService {
 
         BigDecimal totalAmount = BigDecimal.ZERO;
         BigDecimal insurancePaid = BigDecimal.ZERO;
+        boolean hasInsurance = encounter.getInsuranceCode() != null && !encounter.getInsuranceCode().isBlank();
 
         for (PrescriptionItemRequest itemReq : itemRequests) {
             Drug drug = drugRepository.findById(itemReq.getDrugId())
@@ -137,10 +138,14 @@ public class ConsultationService {
             BigDecimal itemTotal = drug.getUnitPrice().multiply(BigDecimal.valueOf(itemReq.getQuantity()));
             totalAmount = totalAmount.add(itemTotal);
 
-            if (drug.getBhytCoverage() == BhytCoverage.BHYT_80) {
-                insurancePaid = insurancePaid.add(itemTotal.multiply(new BigDecimal("0.80")));
-            } else if (drug.getBhytCoverage() == BhytCoverage.BHYT_100) {
-                insurancePaid = insurancePaid.add(itemTotal);
+            // Chỉ áp dụng mức hưởng BHYT khi bệnh nhân có mã BHYT hợp lệ.
+            // Trường hợp không có BHYT: bệnh nhân tự chi trả 100%, insurancePaid giữ nguyên 0.
+            if (hasInsurance) {
+                if (drug.getBhytCoverage() == BhytCoverage.BHYT_80) {
+                    insurancePaid = insurancePaid.add(itemTotal.multiply(new BigDecimal("0.80")));
+                } else if (drug.getBhytCoverage() == BhytCoverage.BHYT_100) {
+                    insurancePaid = insurancePaid.add(itemTotal);
+                }
             }
 
             PrescriptionItem item = PrescriptionItem.builder()
