@@ -33,7 +33,7 @@ public class AuthController {
     }
 
     @PostMapping("/admin/users")
-    @Operation(summary = "Quản trị viên cấp tài khoản mới cho Bác sĩ, Điều dưỡng, Lễ tân, Dược sĩ")
+    @Operation(summary = "Quản trị viên cấp tài khoản mới cho Bác sĩ, Y tá / Thư ký y khoa, Lễ tân, Dược sĩ")
     public ResponseEntity<AuthResponse> createStaff(@Valid @RequestBody CreateStaffRequest request) {
         return ResponseEntity.ok(authService.createStaffAccount(request));
     }

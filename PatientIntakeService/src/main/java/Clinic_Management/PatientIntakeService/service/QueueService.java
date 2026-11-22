@@ -325,7 +325,7 @@ public class QueueService {
         ticket.setHeightCm(req.getHeightCm());
         ticket.setNurseNotes(req.getNurseNotes());
 
-        log.info("Điều dưỡng cập nhật sinh hiệu cho phiếu {}: HA={}, Mạch={}, SpO2={}",
+        log.info("Y tá / Thư ký y khoa cập nhật sinh hiệu cho phiếu {}: HA={}, Mạch={}, SpO2={}",
                 ticketNumber, req.getBloodPressure(), req.getHeartRate(), req.getSpo2());
 
         return queueTicketRepository.save(ticket);

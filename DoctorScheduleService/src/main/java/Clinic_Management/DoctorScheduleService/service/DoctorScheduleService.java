@@ -6,8 +6,10 @@ import Clinic_Management.DoctorScheduleService.repository.DepartmentRepository;
 import Clinic_Management.DoctorScheduleService.repository.DoctorRepository;
 import Clinic_Management.DoctorScheduleService.repository.DoctorShiftRepository;
 import Clinic_Management.DoctorScheduleService.repository.SlotAssignmentRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,7 +19,6 @@ import java.time.LocalTime;
 import java.util.*;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class DoctorScheduleService {
 
@@ -25,6 +26,20 @@ public class DoctorScheduleService {
     private final DoctorRepository doctorRepository;
     private final DepartmentRepository departmentRepository;
     private final SlotAssignmentRepository slotAssignmentRepository;
+    private final JdbcTemplate jdbcTemplate;
+
+    public DoctorScheduleService(
+            DoctorShiftRepository shiftRepository,
+            DoctorRepository doctorRepository,
+            DepartmentRepository departmentRepository,
+            SlotAssignmentRepository slotAssignmentRepository,
+            JdbcTemplate jdbcTemplate) {
+        this.shiftRepository = shiftRepository;
+        this.doctorRepository = doctorRepository;
+        this.departmentRepository = departmentRepository;
+        this.slotAssignmentRepository = slotAssignmentRepository;
+        this.jdbcTemplate = jdbcTemplate;
+    }
 
     @Transactional
     public DoctorShift registerShift(CreateShiftRequest request) {
@@ -44,10 +59,9 @@ public class DoctorScheduleService {
 
         if (resolvedNurseName == null || resolvedNurseName.isBlank()) {
             resolvedNurseName = switch (department.getId().intValue()) {
-                case 1 -> "ĐD. Trịnh Thu Hằng";
-                case 2 -> "ĐD. Đỗ Phương Mai";
-                case 3 -> "ĐD. Nguyễn Thảo Ly";
-                default -> "ĐD. Phụ tá Lâm sàng";
+                case 1 -> "Y tá Trịnh Thu Hằng";
+                case 2 -> "Y tá Đỗ Phương Mai";
+                default -> "Y tá / Thư ký y khoa phòng khám";
             };
         }
 
@@ -56,7 +70,7 @@ public class DoctorScheduleService {
                 .department(department)
                 .shiftDate(request.getShiftDate())
                 .session(request.getSession())
-                .dutyType(request.getDutyType())
+                .dutyType(DutyType.OUTPATIENT)
                 .maxPatientsPerSlot(4)
                 .nurseId(resolvedNurseId)
                 .nurseName(resolvedNurseName)
@@ -67,7 +81,9 @@ public class DoctorScheduleService {
 
     @Transactional(readOnly = true)
     public List<Department> getAllDepartments() {
-        return departmentRepository.findAll();
+        return departmentRepository.findAll().stream()
+                .filter(d -> d.getId() != 3L)
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -93,10 +109,7 @@ public class DoctorScheduleService {
     public boolean validateRosterCompliance(Long departmentId, LocalDate date, ShiftSession session) {
         long outpatientCount = shiftRepository.countByDepartmentIdAndShiftDateAndSessionAndDutyType(
                 departmentId, date, session, DutyType.OUTPATIENT);
-        long inpatientCount = shiftRepository.countByDepartmentIdAndShiftDateAndSessionAndDutyType(
-                departmentId, date, session, DutyType.INPATIENT);
-
-        return outpatientCount >= 1 && inpatientCount >= 1;
+        return outpatientCount >= 1;
     }
 
     private DoctorShiftResponse mapToShiftResponse(DoctorShift shift) {
@@ -117,10 +130,9 @@ public class DoctorScheduleService {
                 .roomNumber(shift.getDoctor().getRoomNumber())
                 .nurseId(shift.getNurseId())
                 .nurseName(shift.getNurseName() != null ? shift.getNurseName() : switch (shift.getDepartment().getId().intValue()) {
-                    case 1 -> "ĐD. Trịnh Thu Hằng";
-                    case 2 -> "ĐD. Đỗ Phương Mai";
-                    case 3 -> "ĐD. Nguyễn Thảo Ly";
-                    default -> "ĐD. Phụ tá";
+                    case 1 -> "Y tá Trịnh Thu Hằng";
+                    case 2 -> "Y tá Đỗ Phương Mai";
+                    default -> "Y tá / Thư ký y khoa phòng khám";
                 })
                 .build();
     }
@@ -149,9 +161,7 @@ public class DoctorScheduleService {
             shift.setSession(request.getSession());
         }
 
-        if (request.getDutyType() != null) {
-            shift.setDutyType(request.getDutyType());
-        }
+        shift.setDutyType(DutyType.OUTPATIENT);
 
         if (request.getMaxPatientsPerSlot() != null && request.getMaxPatientsPerSlot() > 0) {
             shift.setMaxPatientsPerSlot(request.getMaxPatientsPerSlot());
@@ -343,4 +353,17 @@ public class DoctorScheduleService {
         log.info("Đã hủy và giải phóng slot_assignment cho phiếu: {}", ticketNumber);
     }
 
+    @PostConstruct
+    public void migrateOutpatientAndDepartments() {
+        try {
+            jdbcTemplate.update("UPDATE doctor_shifts SET duty_type = 'OUTPATIENT' WHERE duty_type = 'INPATIENT'");
+            jdbcTemplate.update("UPDATE departments SET code = 'NOI', name = 'Khối Nội' WHERE id = 1");
+            jdbcTemplate.update("UPDATE departments SET code = 'NGOAI', name = 'Khối Ngoại' WHERE id = 2");
+            jdbcTemplate.update("UPDATE doctors SET department_id = 1 WHERE department_id = 3");
+            jdbcTemplate.update("UPDATE doctor_shifts SET department_id = 1 WHERE department_id = 3");
+            log.info("Migrated outpatient departments/shifts.");
+        } catch (Exception ex) {
+            log.warn("Migration failed: {}", ex.getMessage());
+        }
+    }
 }

@@ -42,10 +42,18 @@ public class ConsultationService {
         encounter.setObjective(request.getObjective());
         encounter.setAssessment(request.getAssessment());
         encounter.setPlan(request.getPlan());
-        encounter.setBloodPressure(request.getBloodPressure());
-        encounter.setHeartRate(request.getHeartRate());
-        encounter.setTemperature(request.getTemperature());
-        encounter.setSpo2(request.getSpo2());
+        if (request.getBloodPressure() != null) {
+            encounter.setBloodPressure(request.getBloodPressure());
+        }
+        if (request.getHeartRate() != null) {
+            encounter.setHeartRate(request.getHeartRate());
+        }
+        if (request.getTemperature() != null) {
+            encounter.setTemperature(request.getTemperature());
+        }
+        if (request.getSpo2() != null) {
+            encounter.setSpo2(request.getSpo2());
+        }
         encounter.setStatus(EncounterStatus.COMPLETED);
 
         encounter.getDiagnoses().clear();
@@ -331,10 +339,16 @@ public class ConsultationService {
         }
         encounter.setDepartmentId(request.getDepartmentId());
 
-        if (encounter.getBloodPressure() == null && request.getBloodPressure() != null) {
+        if (request.getBloodPressure() != null) {
             encounter.setBloodPressure(request.getBloodPressure());
+        }
+        if (request.getHeartRate() != null) {
             encounter.setHeartRate(request.getHeartRate());
+        }
+        if (request.getTemperature() != null) {
             encounter.setTemperature(request.getTemperature());
+        }
+        if (request.getSpo2() != null) {
             encounter.setSpo2(request.getSpo2());
         }
 
