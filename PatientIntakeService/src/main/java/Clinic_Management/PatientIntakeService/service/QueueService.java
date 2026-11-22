@@ -380,10 +380,21 @@ public class QueueService {
 
     @Transactional
     public QueueTicketDetailResponse approveOnlineTicket(String ticketNumber, String adminName) {
-        QueueTicket ticket = queueTicketRepository
-                .findByAppointmentDateAndTicketNumber(LocalDate.now(), ticketNumber)
-                .or(() -> queueTicketRepository.findTopByTicketNumberOrderByAppointmentDateDesc(ticketNumber))
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy vé khám có mã: " + ticketNumber));
+        return approveOnlineTicket(ticketNumber, adminName, null);
+    }
+
+    @Transactional
+    public QueueTicketDetailResponse approveOnlineTicket(String ticketNumber, String adminName, LocalDate appointmentDate) {
+        QueueTicket ticket;
+        if (appointmentDate != null) {
+            ticket = queueTicketRepository.findByAppointmentDateAndTicketNumber(appointmentDate, ticketNumber)
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy vé khám có mã: " + ticketNumber));
+        } else {
+            ticket = queueTicketRepository
+                    .findByAppointmentDateAndTicketNumber(LocalDate.now(), ticketNumber)
+                    .or(() -> queueTicketRepository.findTopByTicketNumberOrderByAppointmentDateDesc(ticketNumber))
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy vé khám có mã: " + ticketNumber));
+        }
 
         if (ticket.getStatus() != QueueStatus.PENDING_CONFIRMATION) {
             throw new IllegalStateException("Chỉ có thể xác thực các vé online đang ở trạng thái tạm thời (PENDING_CONFIRMATION).");
@@ -392,7 +403,7 @@ public class QueueService {
         LocalDateTime now = LocalDateTime.now();
 
         // Xác nhận chính thức suất khám bên DoctorScheduleService (TEMPORARY -> BOOKED)
-        scheduleClient.confirmSlot(ticket.getTicketNumber());
+        scheduleClient.confirmSlot(ticket.getTicketNumber(), ticket.getAppointmentDate());
 
         ticket.setStatus(QueueStatus.WAITING);
         ticket.setExpiresAt(null);
@@ -407,10 +418,21 @@ public class QueueService {
 
     @Transactional
     public QueueTicketDetailResponse rejectOnlineTicket(String ticketNumber, String reason, String adminName) {
-        QueueTicket ticket = queueTicketRepository
-                .findByAppointmentDateAndTicketNumber(LocalDate.now(), ticketNumber)
-                .or(() -> queueTicketRepository.findTopByTicketNumberOrderByAppointmentDateDesc(ticketNumber))
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy vé khám có mã: " + ticketNumber));
+        return rejectOnlineTicket(ticketNumber, reason, adminName, null);
+    }
+
+    @Transactional
+    public QueueTicketDetailResponse rejectOnlineTicket(String ticketNumber, String reason, String adminName, LocalDate appointmentDate) {
+        QueueTicket ticket;
+        if (appointmentDate != null) {
+            ticket = queueTicketRepository.findByAppointmentDateAndTicketNumber(appointmentDate, ticketNumber)
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy vé khám có mã: " + ticketNumber));
+        } else {
+            ticket = queueTicketRepository
+                    .findByAppointmentDateAndTicketNumber(LocalDate.now(), ticketNumber)
+                    .or(() -> queueTicketRepository.findTopByTicketNumberOrderByAppointmentDateDesc(ticketNumber))
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy vé khám có mã: " + ticketNumber));
+        }
 
         if (ticket.getStatus() != QueueStatus.PENDING_CONFIRMATION) {
             throw new IllegalStateException("Vé này không còn ở trạng thái chờ xác thực.");
@@ -424,7 +446,7 @@ public class QueueService {
                 : "Quản trị viên từ chối xác thực vé online.");
 
         QueueTicket saved = queueTicketRepository.save(ticket);
-        scheduleClient.releaseSlot(ticket.getTicketNumber());
+        scheduleClient.releaseSlot(ticket.getTicketNumber(), ticket.getAppointmentDate());
 
         Patient patient = ticket.getPatient();
         if (patient != null) {
@@ -500,7 +522,7 @@ public class QueueService {
         }
 
         if (ticket.getStatus() == QueueStatus.PENDING_CONFIRMATION) {
-            scheduleClient.releaseSlot(ticket.getTicketNumber());
+            scheduleClient.releaseSlot(ticket.getTicketNumber(), ticket.getAppointmentDate());
         }
 
         queueTicketRepository.delete(ticket);

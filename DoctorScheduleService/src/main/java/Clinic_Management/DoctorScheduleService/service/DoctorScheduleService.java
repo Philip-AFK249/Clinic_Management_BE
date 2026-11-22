@@ -323,33 +323,76 @@ public class DoctorScheduleService {
 
     @Transactional
     public void confirmSlotAssignment(String ticketNumber) {
-        List<SlotAssignment> assignments = slotAssignmentRepository.findByTicketNumber(ticketNumber);
+        confirmSlotAssignment(ticketNumber, null);
+    }
+
+    @Transactional
+    public void confirmSlotAssignment(String ticketNumber, LocalDate appointmentDate) {
+        List<SlotAssignment> assignments = (appointmentDate != null)
+                ? slotAssignmentRepository.findByTicketNumberAndAppointmentDate(ticketNumber, appointmentDate)
+                : slotAssignmentRepository.findByTicketNumber(ticketNumber);
         if (assignments.isEmpty()) {
             throw new IllegalArgumentException("Không tìm thấy slot giữ chỗ cho phiếu: " + ticketNumber);
         }
-        for (SlotAssignment assignment : assignments) {
-            if ("CANCELLED".equals(assignment.getStatus())) {
-                throw new IllegalStateException("Suất giữ chỗ đã bị hủy.");
+
+        List<SlotAssignment> temporaryRows = assignments.stream()
+                .filter(a -> "TEMPORARY".equalsIgnoreCase(a.getStatus()))
+                .toList();
+        if (!temporaryRows.isEmpty()) {
+            for (SlotAssignment a : temporaryRows) {
+                a.setStatus("BOOKED");
+                a.setExpiresAt(null);
             }
-            assignment.setStatus("BOOKED");
-            assignment.setExpiresAt(null);
+            slotAssignmentRepository.saveAll(temporaryRows);
+            log.info("Đã xác nhận chính thức slot_assignment (TEMPORARY -> BOOKED) cho phiếu: {}", ticketNumber);
+            return;
         }
-        slotAssignmentRepository.saveAll(assignments);
-        log.info("Đã xác nhận chính thức slot_assignment (TEMPORARY -> BOOKED) cho phiếu: {}", ticketNumber);
+
+        List<SlotAssignment> bookedRows = assignments.stream()
+                .filter(a -> "BOOKED".equalsIgnoreCase(a.getStatus()))
+                .toList();
+        if (!bookedRows.isEmpty()) {
+            return;
+        }
+
+        // only cancelled rows -> reactivate latest
+        SlotAssignment latest = assignments.stream()
+                .filter(a -> "CANCELLED".equalsIgnoreCase(a.getStatus()))
+                .max(Comparator.comparing(SlotAssignment::getId))
+                .orElse(null);
+        if (latest != null) {
+            latest.setStatus("BOOKED");
+            latest.setExpiresAt(null);
+            slotAssignmentRepository.save(latest);
+            log.info("Đã kích hoạt lại slot_assignment (CANCELLED -> BOOKED) cho phiếu: {}", ticketNumber);
+            return;
+        }
+
+        throw new IllegalStateException("Suất giữ chỗ đã bị hủy.");
     }
 
     @Transactional
     public void releaseSlotAssignment(String ticketNumber) {
-        List<SlotAssignment> assignments = slotAssignmentRepository.findByTicketNumber(ticketNumber);
+        releaseSlotAssignment(ticketNumber, null);
+    }
+
+    @Transactional
+    public void releaseSlotAssignment(String ticketNumber, LocalDate appointmentDate) {
+        List<SlotAssignment> assignments = (appointmentDate != null)
+                ? slotAssignmentRepository.findByTicketNumberAndAppointmentDate(ticketNumber, appointmentDate)
+                : slotAssignmentRepository.findByTicketNumber(ticketNumber);
         if (assignments.isEmpty()) {
             log.warn("Không tìm thấy slot_assignment cho phiếu: {}", ticketNumber);
             return;
         }
-        for (SlotAssignment assignment : assignments) {
+        List<SlotAssignment> toCancel = assignments.stream()
+                .filter(a -> "TEMPORARY".equalsIgnoreCase(a.getStatus()) || "BOOKED".equalsIgnoreCase(a.getStatus()))
+                .toList();
+        for (SlotAssignment assignment : toCancel) {
             assignment.setStatus("CANCELLED");
             assignment.setExpiresAt(null);
         }
-        slotAssignmentRepository.saveAll(assignments);
+        slotAssignmentRepository.saveAll(toCancel);
         log.info("Đã hủy và giải phóng slot_assignment cho phiếu: {}", ticketNumber);
     }
 

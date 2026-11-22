@@ -52,9 +52,19 @@ public class ScheduleServiceClient {
     }
 
     public void releaseSlot(String ticketNumber) {
+        releaseSlot(ticketNumber, null);
+    }
+
+    public void releaseSlot(String ticketNumber, LocalDate appointmentDate) {
         try {
             restClient.delete()
-                    .uri("/assignments/{ticketNumber}", ticketNumber)
+                    .uri(uriBuilder -> {
+                        uriBuilder.path("/assignments/{ticketNumber}");
+                        if (appointmentDate != null) {
+                            uriBuilder.queryParam("date", appointmentDate.toString());
+                        }
+                        return uriBuilder.build(ticketNumber);
+                    })
                     .retrieve()
                     .toBodilessEntity();
         } catch (Exception ex) {
@@ -63,9 +73,19 @@ public class ScheduleServiceClient {
     }
 
     public void confirmSlot(String ticketNumber) {
+        confirmSlot(ticketNumber, null);
+    }
+
+    public void confirmSlot(String ticketNumber, LocalDate appointmentDate) {
         try {
             restClient.patch()
-                    .uri("/assignments/{ticketNumber}/confirm", ticketNumber)
+                    .uri(uriBuilder -> {
+                        uriBuilder.path("/assignments/{ticketNumber}/confirm");
+                        if (appointmentDate != null) {
+                            uriBuilder.queryParam("date", appointmentDate.toString());
+                        }
+                        return uriBuilder.build(ticketNumber);
+                    })
                     .retrieve()
                     .toBodilessEntity();
         } catch (org.springframework.web.client.HttpClientErrorException | org.springframework.web.client.HttpServerErrorException ex) {

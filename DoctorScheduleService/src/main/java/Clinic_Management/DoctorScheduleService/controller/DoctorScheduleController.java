@@ -86,8 +86,10 @@ public class DoctorScheduleController {
 
     @DeleteMapping("/assignments/{ticketNumber}")
     @Operation(summary = "Giải phóng slot khám khi phiếu khám hoặc lịch hẹn bị hủy")
-    public ResponseEntity<Void> releaseSlot(@PathVariable String ticketNumber) {
-        scheduleService.releaseSlotAssignment(ticketNumber);
+    public ResponseEntity<Void> releaseSlot(
+            @PathVariable String ticketNumber,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        scheduleService.releaseSlotAssignment(ticketNumber, date);
         return ResponseEntity.noContent().build();
     }
 
@@ -108,8 +110,10 @@ public class DoctorScheduleController {
 
     @PatchMapping("/assignments/{ticketNumber}/confirm")
     @Operation(summary = "Xác nhận chuyển suất giữ chỗ tạm thời sang chính thức (BOOKED)")
-    public ResponseEntity<Void> confirmSlot(@PathVariable String ticketNumber) {
-        scheduleService.confirmSlotAssignment(ticketNumber);
+    public ResponseEntity<Void> confirmSlot(
+            @PathVariable String ticketNumber,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        scheduleService.confirmSlotAssignment(ticketNumber, date);
         return ResponseEntity.noContent().build();
     }
 }

@@ -43,6 +43,8 @@ public interface SlotAssignmentRepository extends JpaRepository<SlotAssignment, 
 
     List<SlotAssignment> findByTicketNumber(String ticketNumber);
 
+    List<SlotAssignment> findByTicketNumberAndAppointmentDate(String ticketNumber, LocalDate appointmentDate);
+
     List<SlotAssignment> findByDepartmentIdAndAppointmentDateAndSlotStartTime(
             Long departmentId, LocalDate appointmentDate, LocalTime slotStartTime
     );

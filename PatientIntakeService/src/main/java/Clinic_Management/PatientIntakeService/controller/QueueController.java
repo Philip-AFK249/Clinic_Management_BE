@@ -179,10 +179,12 @@ public class QueueController {
     @Operation(summary = "Admin chấp nhận (Accept) vé online tạm thời -> Vé online chính thức")
     public ResponseEntity<QueueTicketDetailResponse> approveOnlineTicket(
             @PathVariable String ticketNumber,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestBody(required = false) TicketReviewPayload payload) {
         return ResponseEntity.ok(queueService.approveOnlineTicket(
                 ticketNumber,
-                payload != null ? payload.adminName() : null
+                payload != null ? payload.adminName() : null,
+                date
         ));
     }
 
@@ -190,11 +192,13 @@ public class QueueController {
     @Operation(summary = "Admin từ chối (Reject) vé online tạm thời và giải phóng suất khám")
     public ResponseEntity<QueueTicketDetailResponse> rejectOnlineTicket(
             @PathVariable String ticketNumber,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestBody(required = false) TicketReviewPayload payload) {
         return ResponseEntity.ok(queueService.rejectOnlineTicket(
                 ticketNumber,
                 payload != null ? payload.reason() : null,
-                payload != null ? payload.adminName() : null
+                payload != null ? payload.adminName() : null,
+                date
         ));
     }
 
